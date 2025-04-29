@@ -8,7 +8,7 @@ Railway offers simple deployment with automatic CI/CD from your GitHub repositor
 2. Your Telegram Bot Token (from BotFather)
 3. A Railway.com account
 
-## Deployment Steps
+## Recommended Deployment Method
 
 ### 1. Sign up/Login to Railway
 
@@ -33,12 +33,12 @@ Visit [Railway.app](https://railway.app/) and sign up or login with your GitHub 
 TELEGRAM_BOT_TOKEN=1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789
 ```
 
-### 4. Configure Deployment Settings (Optional)
+### 4. Configure Deployment Settings
 
 1. Go to the "Settings" tab
 2. Ensure the following settings:
    - Root Directory: `/` (default)
-   - Build Command: `npm install` (default)
+   - Build Command: `npm install --omit=dev` (avoid using Dockerfile)
    - Start Command: `npm start` (default)
 
 ### 5. Trigger Deployment
@@ -64,14 +64,27 @@ By default, Railway may put your service to sleep after inactivity. To ensure 24
 
 ## Troubleshooting
 
-If your bot doesn't respond:
+### If you see "npm ci --only=production" error:
 
-1. Check deployment logs in Railway dashboard
+This error occurs when Railway tries to use the Dockerfile. To fix it:
+
+1. **Disable Dockerfile Detection**:
+   - In your Railway project, go to "Settings"
+   - Set "Root Directory" to "/"
+   - Set build command to `npm install --omit=dev`
+   - Set start command to `npm start`
+   - Click "Deploy" to deploy with these new settings
+
+2. **Try direct npm commands**:
+   - Set Build Command: `npm install --omit=dev`
+   - Set Start Command: `node src/index.js`
+   - Click "Deploy" to deploy with these commands
+
+### Other Common Issues:
+
+1. Check deployment logs in Railway dashboard for specific errors
 2. Verify the `TELEGRAM_BOT_TOKEN` is correct (no extra spaces or quotes)
 3. Make sure your bot is added to the chat where you're sending commands
 4. Try redeploying the application
 
-For persistent issues, Railway provides a "Connect" terminal option where you can check logs with:
-```
-npm start
-``` 
+For persistent issues, Railway provides a "Connect" terminal option where you can check logs and environment variables. 

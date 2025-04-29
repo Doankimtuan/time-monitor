@@ -2,12 +2,11 @@ FROM node:18-slim
 
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package*.json ./
-RUN npm ci --only=production
+# Copy entire project
+COPY . .
 
-# Copy source code
-COPY src/ ./src/
+# Install dependencies using npm install
+RUN npm install --omit=dev
 
 # Start the bot
 CMD ["npm", "start"] 
