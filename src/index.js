@@ -3,20 +3,42 @@ const { Telegraf } = require("telegraf");
 const axios = require("axios");
 const http = require("http");
 
-// Environment variables with validation
+// Log available environment variables (without showing sensitive values)
+console.log(
+  "Environment variables available:",
+  Object.keys(process.env)
+    .filter((key) => !key.includes("TOKEN"))
+    .join(", ")
+);
+
+// Environment variables with validation and fallbacks
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+// We also check for common variations in case Railway sets it differently
+const FALLBACK_TOKEN =
+  process.env.TELEGRAM_TOKEN ||
+  process.env.BOT_TOKEN ||
+  process.env.TGBOT_TOKEN;
+
+// Use token or fallback
+const BOT_TOKEN = TELEGRAM_BOT_TOKEN || FALLBACK_TOKEN;
 
 // Validate bot token exists
-if (!TELEGRAM_BOT_TOKEN) {
+if (!BOT_TOKEN) {
   console.error(
     "ERROR: TELEGRAM_BOT_TOKEN is missing. Please set it in your .env file or environment variables."
+  );
+  console.error(
+    "Available environment variables:",
+    Object.keys(process.env)
+      .filter((key) => !key.includes("TOKEN"))
+      .join(", ")
   );
   process.exit(1);
 }
 
 // Initialize Telegram Bot with proper error handling
-console.log("Initializing bot with token length:", TELEGRAM_BOT_TOKEN.length);
-const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
+console.log("Initializing bot with token (length):", BOT_TOKEN.length);
+const bot = new Telegraf(BOT_TOKEN);
 
 // Add middleware to log all incoming messages
 bot.use((ctx, next) => {
@@ -557,10 +579,7 @@ async function startBot(maxRetries = 3) {
       console.log(`Attempt ${retryCount + 1} to start bot...`);
 
       // Make sure we're using a valid token
-      if (
-        !TELEGRAM_BOT_TOKEN ||
-        TELEGRAM_BOT_TOKEN === "your_telegram_bot_token_here"
-      ) {
+      if (!BOT_TOKEN || BOT_TOKEN === "your_telegram_bot_token_here") {
         throw new Error(
           "Invalid bot token. Please check your environment variables."
         );

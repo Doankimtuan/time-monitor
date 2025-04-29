@@ -1,0 +1,1 @@
+web: node test-env.js && npm start 

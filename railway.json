@@ -5,7 +5,7 @@
     "buildCommand": "npm install --production"
   },
   "deploy": {
-    "startCommand": "npm start",
+    "startCommand": "npm run railway",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

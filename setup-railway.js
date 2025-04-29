@@ -5,6 +5,9 @@
  * This script helps ensure your application is properly set up for Railway deployment
  */
 
+// Load environment variables from .env file if present
+require("dotenv").config();
+
 console.log("🚂 Time.fun Monitor - Railway Setup Helper");
 console.log("------------------------------------------");
 
@@ -16,6 +19,13 @@ console.log(`✅ Node.js version: ${nodeVersion}`);
 const isRailway =
   process.env.RAILWAY_SERVICE_ID || process.env.RAILWAY_STATIC_URL;
 console.log(`Environment: ${isRailway ? "Railway" : "Local"}`);
+
+// Check environment variables
+console.log("Checking environment variables...");
+console.log(
+  "Available environment variables:",
+  Object.keys(process.env).join(", ")
+);
 
 // Check for TELEGRAM_BOT_TOKEN
 if (process.env.TELEGRAM_BOT_TOKEN) {
@@ -35,6 +45,14 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
     "❌ TELEGRAM_BOT_TOKEN not found! The bot will not function without this."
   );
   console.log("Please set this environment variable in your Railway project.");
+
+  // Log all environment variables for debugging (without values for security)
+  console.log(
+    "Available environment variables:",
+    Object.keys(process.env)
+      .filter((key) => !key.includes("TOKEN"))
+      .join(", ")
+  );
 }
 
 // Check for PORT
@@ -53,6 +71,9 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
 } else {
   console.log("\n❌ Your application is missing required configuration.");
   console.log("Please check the messages above to fix the issues.\n");
+
+  // Don't exit with an error code, let main app handle it
+  // as it will also check for the token
 }
 
 // This script will exit and allow the main app to start
