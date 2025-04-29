@@ -30,38 +30,17 @@ envVars.forEach((key) => {
   }
 });
 
-// Check specifically for Telegram token
-console.log("\nTelegram Bot Token Check:");
-const hasToken = !!process.env.TELEGRAM_BOT_TOKEN;
-console.log("TELEGRAM_BOT_TOKEN present:", hasToken);
+// Note about hardcoded token
+console.log("\n✅ Using hardcoded Telegram Bot Token from source code");
+console.log(
+  "Token is set directly in src/index.js - no environment variable needed"
+);
 
-if (hasToken) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  console.log("Token length:", token.length);
-  console.log("Contains colon (:):", token.includes(":"));
-  console.log("Starts with number:", /^\d/.test(token));
-
-  // Very basic validation
-  if (token.includes(":") && token.length > 20) {
-    console.log("Token format appears valid");
-  } else {
-    console.log("WARNING: Token format may be invalid");
-  }
+// Check for PORT
+if (process.env.PORT) {
+  console.log(`\n✅ PORT is set to ${process.env.PORT}`);
 } else {
-  console.log("Checking for alternative token variables:");
-  const alternatives = ["TELEGRAM_TOKEN", "BOT_TOKEN", "TGBOT_TOKEN"];
-  let found = false;
-
-  alternatives.forEach((alt) => {
-    if (process.env[alt]) {
-      console.log(`- ${alt}: [present, ${process.env[alt].length} characters]`);
-      found = true;
-    }
-  });
-
-  if (!found) {
-    console.log("No alternative token variables found.");
-  }
+  console.log("\nℹ️ PORT is not set. Will use default port 3000.");
 }
 
 console.log("\n======= TEST COMPLETE =======");

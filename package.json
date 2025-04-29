@@ -4,9 +4,9 @@
   "description": "Monitor for new creators on time.fun",
   "main": "src/index.js",
   "scripts": {
-    "start": "node setup-railway.js && node -r dotenv/config src/index.js",
-    "railway": "node test-env.js && node -r dotenv/config src/index.js",
-    "dev": "nodemon -r dotenv/config src/index.js",
+    "start": "node setup-railway.js && node src/index.js",
+    "railway": "node test-env.js && node src/index.js",
+    "dev": "nodemon src/index.js",
     "lint": "eslint src/*.js",
     "postinstall": "echo 'Installation completed successfully'"
   },

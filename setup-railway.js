@@ -27,33 +27,8 @@ console.log(
   Object.keys(process.env).join(", ")
 );
 
-// Check for TELEGRAM_BOT_TOKEN
-if (process.env.TELEGRAM_BOT_TOKEN) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  console.log(`✅ TELEGRAM_BOT_TOKEN found (${token.length} characters)`);
-
-  // Simple validation
-  if (token.includes(":") && token.length > 20) {
-    console.log("✅ Token format looks valid");
-  } else {
-    console.log(
-      "⚠️ Warning: Token format may be invalid. Expected format: 1234567890:ABCDEF..."
-    );
-  }
-} else {
-  console.log(
-    "❌ TELEGRAM_BOT_TOKEN not found! The bot will not function without this."
-  );
-  console.log("Please set this environment variable in your Railway project.");
-
-  // Log all environment variables for debugging (without values for security)
-  console.log(
-    "Available environment variables:",
-    Object.keys(process.env)
-      .filter((key) => !key.includes("TOKEN"))
-      .join(", ")
-  );
-}
+// No need to check for TELEGRAM_BOT_TOKEN anymore as it's hardcoded in the source code
+console.log("✅ Using hardcoded bot token from source code");
 
 // Check for PORT
 if (process.env.PORT) {
@@ -62,18 +37,10 @@ if (process.env.PORT) {
   console.log("ℹ️ PORT is not set. Will use default port 3000.");
 }
 
-// Display success message if everything looks good
-if (process.env.TELEGRAM_BOT_TOKEN) {
-  console.log(
-    "\n✅ Your application appears to be properly configured for Railway."
-  );
-  console.log("Starting the main application...\n");
-} else {
-  console.log("\n❌ Your application is missing required configuration.");
-  console.log("Please check the messages above to fix the issues.\n");
-
-  // Don't exit with an error code, let main app handle it
-  // as it will also check for the token
-}
+// Display success message
+console.log(
+  "\n✅ Your application appears to be properly configured for Railway."
+);
+console.log("Starting the main application...\n");
 
 // This script will exit and allow the main app to start
