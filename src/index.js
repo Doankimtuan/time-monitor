@@ -1,11 +1,21 @@
 require("dotenv").config();
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
+const http = require("http");
 
-// Environment variables
+// Environment variables with validation
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+// Validate bot token exists
+if (!TELEGRAM_BOT_TOKEN) {
+  console.error(
+    "ERROR: TELEGRAM_BOT_TOKEN is missing. Please set it in your .env file or environment variables."
+  );
+  process.exit(1);
+}
+
 // Initialize Telegram Bot with proper error handling
+console.log("Initializing bot with token length:", TELEGRAM_BOT_TOKEN.length);
 const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
 // Add middleware to log all incoming messages
@@ -537,21 +547,64 @@ async function fetchNewCreators(isInitialFetch) {
 
 // Start the bot with more detailed logging
 console.log("Starting Telegram bot...");
-bot
-  .launch({
-    // Add webhook info if needed
-    // webhook: {
-    //  domain: process.env.WEBHOOK_DOMAIN,
-    //  port: process.env.PORT || 3000
-    // }
-  })
-  .then(() => {
-    console.log("Telegram bot started successfully!");
-    console.log("Use /monitor in the bot chat to begin monitoring");
-  })
-  .catch((err) => {
-    console.error("Failed to start Telegram bot:", err);
-  });
+
+// Function to start the bot with retries
+async function startBot(maxRetries = 3) {
+  let retryCount = 0;
+
+  while (retryCount < maxRetries) {
+    try {
+      console.log(`Attempt ${retryCount + 1} to start bot...`);
+
+      // Make sure we're using a valid token
+      if (
+        !TELEGRAM_BOT_TOKEN ||
+        TELEGRAM_BOT_TOKEN === "your_telegram_bot_token_here"
+      ) {
+        throw new Error(
+          "Invalid bot token. Please check your environment variables."
+        );
+      }
+
+      await bot.launch({
+        // Add webhook info if needed
+        // webhook: {
+        //  domain: process.env.WEBHOOK_DOMAIN,
+        //  port: process.env.PORT || 3000
+        // }
+      });
+
+      console.log("Telegram bot started successfully!");
+      console.log("Use /monitor in the bot chat to begin monitoring");
+      return true;
+    } catch (err) {
+      retryCount++;
+      console.error(
+        `Failed to start Telegram bot (attempt ${retryCount}/${maxRetries}):`,
+        err.message
+      );
+
+      if (retryCount >= maxRetries) {
+        console.error(
+          "Max retries reached. Could not start the bot. Please check your configuration."
+        );
+        process.exit(1);
+      }
+
+      // Wait before retry
+      console.log(`Waiting 5 seconds before retry...`);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+  }
+
+  return false;
+}
+
+// Start the bot
+startBot().catch((err) => {
+  console.error("Fatal error starting bot:", err);
+  process.exit(1);
+});
 
 // Handle application termination gracefully
 process.on("SIGINT", () => {
@@ -570,4 +623,31 @@ process.on("SIGTERM", () => {
 process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error.message);
   // Keep the application running despite errors
+});
+
+// Add http server for health checks (keeps Railway from sleeping)
+const PORT = process.env.PORT || 3000;
+
+// Create a simple HTTP server for health checks
+const server = http.createServer((req, res) => {
+  // Health check endpoint
+  if (req.url === "/health" || req.url === "/") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        service: "Time.fun Monitor Bot",
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+      })
+    );
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
+
+// Start HTTP server
+server.listen(PORT, () => {
+  console.log(`Health check server running on port ${PORT}`);
 });

@@ -2,6 +2,16 @@
 
 A simple Node.js application that monitors new creators on time.fun and sends notifications via Telegram using the Telegraf library.
 
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/t9u-kJ?referralCode=LXhvCm)
+
+## Features
+
+- 🔍 Monitor time.fun for new creators
+- 🔔 Send notifications via Telegram
+- 🖼️ Show creator images and profile info
+- 📊 Track statistics about creators
+- 🔄 Simple commands to control monitoring
+
 ## Setup
 
 1. Clone this repository
@@ -36,30 +46,10 @@ Once the bot is running, you can interact with it using these commands:
 
 The bot will automatically send you a notification whenever a new creator appears on time.fun.
 
-## Deployment Options
+## Deployment
 
-### 1. Railway.app (Recommended)
+This bot can be easily deployed to Railway.com. See [RAILWAY.md](RAILWAY.md) for Railway-specific deployment instructions or [DEPLOYMENT.md](DEPLOYMENT.md) for other hosting options.
 
-1. Sign up for a free account at [Railway.app](https://railway.app/)
-2. Connect your GitHub repository
-3. Configure the environment variable (TELEGRAM_BOT_TOKEN)
-4. Deploy with default settings
+## License
 
-### 2. Render.com
-
-1. Sign up for a free account at [Render.com](https://render.com/)
-2. Create a new Web Service
-3. Connect your GitHub repository
-4. Set the build command to `npm install`
-5. Set the start command to `npm start`
-6. Add the environment variable
-7. Deploy
-
-### 3. Cyclic.sh
-
-1. Sign up for a free account at [Cyclic.sh](https://cyclic.sh/)
-2. Connect your GitHub repository
-3. Add the environment variable
-4. Deploy
-
-Note: Free tiers of these services may have limitations in terms of uptime. For a more reliable service, consider paid plans or other hosting options. 
+MIT 
