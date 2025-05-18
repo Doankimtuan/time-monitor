@@ -524,8 +524,8 @@ bot.on("text", (ctx) => {
 // Function to format contract address for easy copying
 function formatContractAddress(address) {
   if (!address) return "";
-  // Using Telegram's monospace formatting with 'code' entity for easy copying
-  return `\n📋 Contract (click to copy):\n\`${address}\``;
+  // Using Telegram's HTML formatting for easy copying
+  return `\n📋 Contract (click to copy):\n<code>${address}</code>`;
 }
 
 // Function to fetch new creators
