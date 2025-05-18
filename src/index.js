@@ -90,9 +90,6 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
 
     if (latestCreatorData && latestCreatorData.solanaAddress) {
       try {
-        // The correct API endpoint format might be different
-        // For now, just use the basic creator info
-
         // Format price per minute if available
         let priceInfo = "";
         if (latestCreatorData.pricePerMinuteUsd) {
@@ -121,12 +118,23 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
           timeInfo = `\n🕒 Created: ${creationDate.toLocaleString()}`;
         }
 
+        // Get the x url
+        const xUsername = latestCreatorData.image
+          .split("/")
+          .pop()
+          .split(".")[0];
+        const xUrl = `https://x.com/${xUsername}`;
+
+        const contractAddress = await getContractAddress(
+          latestCreatorData.solanaAddress
+        );
+
         // Send the enhanced creator info
         const message = `🆕 Latest Creator:\n\n👤 ${verifiedBadge}Username: ${
           latestCreatorData.username || "N/A"
-        }${priceInfo}${changeInfo}${timeInfo}\n💼 Solana Address: ${
-          latestCreatorData.solanaAddress || "N/A"
-        }\n\n🔗 Link: https://time.fun/${latestCreatorData.username}`;
+        }${priceInfo}${changeInfo}${timeInfo}\n\n🔗 Link: https://time.fun/${
+          latestCreatorData.username
+        }\n\n🔗 X: ${xUrl}\n\n🔗 Contract: ${contractAddress}`;
 
         // Send message with image if available
         if (latestCreatorData.image) {
@@ -189,6 +197,64 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
     ctx.reply("❌ Error fetching latest creator. Please try again later.");
   }
 });
+
+// Get the contract address from the solana address
+async function getContractAddress(solanaAddress) {
+  const procedures = [
+    "creators.getSocials",
+    "creators.checkIfOnWatchlist",
+    "timeMarket.getUserTimeValue",
+    "creators.getCreatorDonations",
+    "timeMarket.getCreatorTimeMarket", // << we want this one!
+    "timeMarket.getTimeMarketState",
+    "rewards.fetchTotalAwardPool",
+    "timeMarket.getTimeMarketStats",
+    "creators.checkPoolMigration",
+    "auth.getAccessToken",
+    "creators.priceChartOhlc",
+    "timeMarket.hasTimeMarket",
+    "timeMarket.getBondingProgress",
+    "timeMarket.getUserUsdcBalance",
+  ];
+
+  // Map of input objects for each procedure (indexed by order)
+  const input = {
+    0: { json: { solanaAddress } },
+    1: { json: { creatorAddress: solanaAddress } },
+    2: { json: { creatorAddress: solanaAddress } },
+    3: { json: { creatorAddress: solanaAddress } },
+    4: { json: { address: solanaAddress } }, // timeMarket.getCreatorTimeMarket
+    5: { json: { creatorAddress: solanaAddress } },
+    6: { json: { creatorAddress: solanaAddress } },
+    7: { json: { creatorAddress: solanaAddress } },
+    8: { json: { creatorAddress: solanaAddress } },
+    9: { json: null, meta: { values: ["undefined"] } },
+    10: { json: { creatorAddress: solanaAddress, minutesInterval: 15 } },
+    11: { json: { creatorAddress: solanaAddress } },
+    12: { json: { creatorAddress: solanaAddress } },
+    13: { json: null, meta: { values: ["undefined"] } },
+  };
+
+  const url = `https://time.fun/api/trpc/${procedures.join(
+    ","
+  )}?batch=1&input=${encodeURIComponent(JSON.stringify(input))}`;
+
+  //   console.log(url);
+
+  try {
+    const res = await axios.get(url);
+    const results = res.data;
+    console.log(JSON.stringify(results));
+
+    // Index 4 corresponds to timeMarket.getCreatorTimeMarket
+    const mintAddress = results?.[4]?.result?.data?.json?.mintAddress;
+
+    return mintAddress || null;
+  } catch (err) {
+    console.error("Error fetching contract address:", err.message);
+    return null;
+  }
+}
 
 // Function to get the latest creator
 async function getLatestCreator() {
@@ -399,6 +465,14 @@ async function fetchNewCreators(isInitialFetch) {
         latestCreator = creators[0];
       }
 
+      // Get the x url
+      const xUsername = latestCreatorData.image.split("/").pop().split(".")[0];
+      const xUrl = `https://x.com/${xUsername}`;
+
+      const contractAddress = await getContractAddress(
+        latestCreatorData.solanaAddress
+      );
+
       // Check for new creators
       creators.forEach((creator) => {
         if (
@@ -442,16 +516,9 @@ async function fetchNewCreators(isInitialFetch) {
               // Prepare message
               const message = `🔔 New Creator Alert!\n\n👤 ${verifiedBadge}Username: ${
                 creator.username || "N/A"
-              }${priceInfo}${changeInfo}${timeInfo}\n💼 Solana Address: ${
-                creator.solanaAddress
-                  ? `${creator.solanaAddress.substring(
-                      0,
-                      4
-                    )}...${creator.solanaAddress.substring(
-                      creator.solanaAddress.length - 4
-                    )}`
-                  : "N/A"
-              }\n\n🔗 Link: https://time.fun/${creator.username}`;
+              }${priceInfo}${changeInfo}${timeInfo}\n\n🔗 Link: https://time.fun/${
+                creator.username
+              }\n\n🔗 X: ${xUrl}\n\n🔗 Contract: ${contractAddress}`;
 
               // Send with image if available
               if (creator.image) {
