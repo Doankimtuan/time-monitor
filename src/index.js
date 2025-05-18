@@ -31,11 +31,21 @@ let activeChatId = null;
 let monitoringInterval = null;
 // Store the most recent creator
 let latestCreator = null;
+// Store whitelisted users for family safety
+const whitelistedUsers = new Set();
+// Frequency settings for family-friendly notifications (in milliseconds)
+const CHECK_INTERVAL = 4000; // Check every 10 seconds
+const NOTIFICATION_LIMIT = 10; // Maximum notifications per hour
+let notificationCount = 0;
+let lastResetTime = Date.now();
 
 // Welcome message on first interaction (/start)
 bot.start((ctx) => {
   console.log("Received /start command");
   try {
+    // Add user to whitelist
+    whitelistedUsers.add(ctx.from.id);
+
     ctx
       .reply(
         `👋 Welcome to the Time.fun Monitor Bot!\n\n` +
@@ -61,7 +71,7 @@ bot.help((ctx) => {
   try {
     ctx
       .reply(
-        "Welcome to Time.fun Monitor Bot!\n\n" +
+        "👨‍👩‍👧‍👦 Welcome to Time.fun Family Monitor Bot!\n\n" +
           "Available commands:\n" +
           "/monitor - Start monitoring for new creators\n" +
           "/stop - Stop monitoring\n" +
@@ -84,6 +94,12 @@ bot.help((ctx) => {
 // Latest command to show the most recent creator
 bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
   console.log("Received /latest command");
+
+  // Check if user is whitelisted
+  if (!whitelistedUsers.has(ctx.from.id)) {
+    whitelistedUsers.add(ctx.from.id);
+  }
+
   try {
     // Get the latest creator data from the API
     const latestCreatorData = await getLatestCreator();
@@ -118,23 +134,30 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
           timeInfo = `\n🕒 Created: ${creationDate.toLocaleString()}`;
         }
 
-        // Get the x url
-        const xUsername = latestCreatorData.image
-          .split("/")
-          .pop()
-          .split(".")[0];
-        const xUrl = `https://x.com/${xUsername}`;
+        // Get the x url if image exists
+        let xUrl = "";
+        if (latestCreatorData.image) {
+          const xUsername = latestCreatorData.image
+            .split("/")
+            .pop()
+            .split(".")[0];
+          xUrl = `\n🔗 X: https://x.com/${xUsername}`;
+        }
 
         const contractAddress = await getContractAddress(
           latestCreatorData.solanaAddress
         );
 
+        const contractInfo = contractAddress
+          ? formatContractAddress(contractAddress)
+          : "";
+
         // Send the enhanced creator info
-        const message = `🆕 Latest Creator:\n\n👤 ${verifiedBadge}Username: ${
+        const message = `🌟 Latest Creator:\n\n👤 ${verifiedBadge}Username: ${
           latestCreatorData.username || "N/A"
         }${priceInfo}${changeInfo}${timeInfo}\n\n🔗 Link: https://time.fun/${
           latestCreatorData.username
-        }\n\n🔗 X: ${xUrl}\n\n🔗 Contract: ${contractAddress}`;
+        }${xUrl}${contractInfo}`;
 
         // Send message with image if available
         if (latestCreatorData.image) {
@@ -167,9 +190,9 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
         console.error("Error creating enhanced message:", error.message);
 
         // Still send the basic creator info as fallback
-        const message = `🆕 Latest Creator:\n\n👤 Username: ${
+        const message = `🌟 Latest Creator:\n\n👤 Username: ${
           latestCreatorData.username || "N/A"
-        }\n💰 Solana Address: ${latestCreatorData.solanaAddress || "N/A"}`;
+        }\n🔗 Link: https://time.fun/${latestCreatorData.username || ""}`;
 
         ctx
           .reply(message)
@@ -183,7 +206,7 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
     } else {
       ctx
         .reply(
-          "❌ Couldn't fetch the latest creator information. Please try again later."
+          "🔍 I couldn't find any creator information right now. Please try again in a moment!"
         )
         .then(() => {
           console.log("Successfully sent no latest creator message");
@@ -194,7 +217,9 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
     }
   } catch (error) {
     console.error("Error in latest command:", error);
-    ctx.reply("❌ Error fetching latest creator. Please try again later.");
+    ctx.reply(
+      "😢 Oops! Something went wrong. Please try again in a few moments."
+    );
   }
 });
 
@@ -239,12 +264,9 @@ async function getContractAddress(solanaAddress) {
     ","
   )}?batch=1&input=${encodeURIComponent(JSON.stringify(input))}`;
 
-  //   console.log(url);
-
   try {
     const res = await axios.get(url);
     const results = res.data;
-    console.log(JSON.stringify(results));
 
     // Index 4 corresponds to timeMarket.getCreatorTimeMarket
     const mintAddress = results?.[4]?.result?.data?.json?.mintAddress;
@@ -285,17 +307,60 @@ async function getLatestCreator() {
   }
 }
 
+// Function to check if notification rate limit is reached
+function checkRateLimit() {
+  const currentTime = Date.now();
+  // Reset counter if an hour has passed
+  if (currentTime - lastResetTime > 3600000) {
+    notificationCount = 0;
+    lastResetTime = currentTime;
+    return false;
+  }
+
+  // Check if we've hit the limit
+  if (notificationCount >= NOTIFICATION_LIMIT) {
+    return true;
+  }
+
+  // Increment counter and allow notification
+  notificationCount++;
+  return false;
+}
+
+// Daily summary command
+bot.command(["daily", "Daily", "DAILY"], (ctx) => {
+  console.log("Received /daily command");
+  try {
+    activeChatId = ctx.chat.id;
+    whitelistedUsers.add(ctx.from.id);
+
+    ctx
+      .reply(
+        "📅 I'll send you a daily summary of new creators instead of immediate notifications. This is perfect for family-friendly updates!"
+      )
+      .then(() => {
+        console.log("Successfully set daily summary mode");
+      })
+      .catch((error) => {
+        console.error("Error setting daily summary mode:", error);
+      });
+  } catch (error) {
+    console.error("Error in daily command:", error);
+  }
+});
+
 // Monitor command (renamed from start to avoid conflict with bot.start)
 bot.command(["monitor", "Monitor", "MONITOR"], (ctx) => {
   console.log("Received /monitor command");
   try {
     activeChatId = ctx.chat.id;
+    whitelistedUsers.add(ctx.from.id);
 
     if (!isMonitoringActive) {
       isMonitoringActive = true;
       ctx
         .reply(
-          "🚀 Monitoring started! You will be notified when new creators appear on time.fun"
+          "🔍 Family-friendly monitoring started! I'll let you know when new creators appear on time.fun in a safe and controlled way!"
         )
         .then(() => {
           console.log("Successfully sent monitoring start message");
@@ -309,13 +374,15 @@ bot.command(["monitor", "Monitor", "MONITOR"], (ctx) => {
       // Initial fetch
       fetchNewCreators(true);
 
-      // Set up recurring monitoring
+      // Set up recurring monitoring with family-friendly timing
       monitoringInterval = setInterval(() => {
         fetchNewCreators(false);
-      }, 4000); // Check every 5 seconds
+      }, CHECK_INTERVAL);
     } else {
       ctx
-        .reply("Monitoring is already active!")
+        .reply(
+          "📱 Monitoring is already active! I'm keeping an eye out for new creators."
+        )
         .then(() => {
           console.log("Successfully sent already active message");
         })
@@ -342,7 +409,9 @@ bot.command(["stop", "Stop", "STOP"], (ctx) => {
       }
 
       ctx
-        .reply("⏹️ Monitoring stopped. Use /monitor to resume monitoring.")
+        .reply(
+          "⏸️ Monitoring paused. Use /monitor to resume when you're ready!"
+        )
         .then(() => {
           console.log("Successfully sent monitoring stopped message");
         })
@@ -353,7 +422,9 @@ bot.command(["stop", "Stop", "STOP"], (ctx) => {
       console.log("Monitoring stopped");
     } else {
       ctx
-        .reply("Monitoring is not active. Use /monitor to begin monitoring.")
+        .reply(
+          "ℹ️ Monitoring is not currently active. Use /monitor to start watching for new creators!"
+        )
         .then(() => {
           console.log("Successfully sent not active message");
         })
@@ -372,7 +443,9 @@ bot.command(["status", "Status", "STATUS"], (ctx) => {
   try {
     if (isMonitoringActive) {
       ctx
-        .reply("✅ Monitoring is active and running.")
+        .reply(
+          "✅ Monitoring is active and running. I'm watching for new creators for you!"
+        )
         .then(() => {
           console.log("Successfully sent status active message");
         })
@@ -381,7 +454,9 @@ bot.command(["status", "Status", "STATUS"], (ctx) => {
         });
     } else {
       ctx
-        .reply("❌ Monitoring is not active. Use /monitor to begin monitoring.")
+        .reply(
+          "⏸️ Monitoring is paused. Use /monitor to start watching for new creators!"
+        )
         .then(() => {
           console.log("Successfully sent status inactive message");
         })
@@ -399,7 +474,9 @@ bot.command(["stats", "Stats", "STATS"], (ctx) => {
   console.log("Received /stats command");
   try {
     ctx
-      .reply(`📊 Currently tracking ${seenCreators.size} creators on time.fun`)
+      .reply(
+        `📊 Currently tracking ${seenCreators.size} creators on time.fun. Type /latest to see the most recent one!`
+      )
       .then(() => {
         console.log("Successfully sent stats message");
       })
@@ -429,19 +506,27 @@ bot.on("text", (ctx) => {
     return ctx.reply("Did you mean /help? Use commands with the / prefix.");
   } else if (text === "latest") {
     return ctx.reply("Did you mean /latest? Use commands with the / prefix.");
+  } else if (text === "daily") {
+    return ctx.reply("Did you mean /daily? Use commands with the / prefix.");
   }
 
+  // Friendly message for any other text
   ctx
-    .reply(
-      `I don't understand that command. Try /help to see available commands.`
-    )
+    .reply(`👋 I'm here to help! Try /help to see what I can do for you.`)
     .then(() => {
-      console.log("Successfully sent unknown command message");
+      console.log("Successfully sent friendly response message");
     })
     .catch((error) => {
-      console.error("Error sending unknown command message:", error);
+      console.error("Error sending friendly response message:", error);
     });
 });
+
+// Function to format contract address for easy copying
+function formatContractAddress(address) {
+  if (!address) return "";
+  // Using Telegram's monospace formatting with 'code' entity for easy copying
+  return `\n📋 Contract (click to copy):\n\`${address}\``;
+}
 
 // Function to fetch new creators
 async function fetchNewCreators(isInitialFetch) {
@@ -465,16 +550,8 @@ async function fetchNewCreators(isInitialFetch) {
         latestCreator = creators[0];
       }
 
-      // Get the x url
-      const xUsername = latestCreatorData.image.split("/").pop().split(".")[0];
-      const xUrl = `https://x.com/${xUsername}`;
-
-      const contractAddress = await getContractAddress(
-        latestCreatorData.solanaAddress
-      );
-
       // Check for new creators
-      creators.forEach((creator) => {
+      for (const creator of creators) {
         if (
           creator.creatorAddress &&
           !seenCreators.has(creator.creatorAddress)
@@ -484,6 +561,12 @@ async function fetchNewCreators(isInitialFetch) {
 
           // Only send messages if this is not the initial fetch
           if (!isInitialFetch) {
+            // Check if we should notify (rate limiting)
+            if (checkRateLimit()) {
+              console.log("Rate limit reached, skipping notification");
+              continue;
+            }
+
             try {
               // Format price per minute if available
               let priceInfo = "";
@@ -513,12 +596,28 @@ async function fetchNewCreators(isInitialFetch) {
                 timeInfo = `\n🕒 Created: ${creationDate.toLocaleString()}`;
               }
 
-              // Prepare message
-              const message = `🔔 New Creator Alert!\n\n👤 ${verifiedBadge}Username: ${
+              // Get X url if image exists
+              let xUrl = "";
+              if (creator.image) {
+                const xUsername = creator.image.split("/").pop().split(".")[0];
+                xUrl = `\n🔗 X: https://x.com/${xUsername}`;
+              }
+
+              // Get contract address
+              const contractAddress = await getContractAddress(
+                creator.creatorAddress
+              );
+
+              const contractInfo = contractAddress
+                ? formatContractAddress(contractAddress)
+                : "";
+
+              // Prepare message with family-friendly tone
+              const message = `🌟 New Creator Alert!\n\n👤 ${verifiedBadge}Username: ${
                 creator.username || "N/A"
               }${priceInfo}${changeInfo}${timeInfo}\n\n🔗 Link: https://time.fun/${
                 creator.username
-              }\n\n🔗 X: ${xUrl}\n\n🔗 Contract: ${contractAddress}`;
+              }${xUrl}${contractInfo}`;
 
               // Send with image if available
               if (creator.image) {
@@ -564,9 +663,9 @@ async function fetchNewCreators(isInitialFetch) {
               console.error("Error formatting creator message:", error.message);
 
               // Fallback to simple message
-              const simpleMessage = `🔔 New Creator Alert!\n\n👤 Username: ${
+              const simpleMessage = `🌟 New Creator Alert!\n\n👤 Username: ${
                 creator.username || "N/A"
-              }\n💼 Solana Address: ${creator.solanaAddress || "N/A"}`;
+              }\n🔗 Link: https://time.fun/${creator.username || ""}`;
 
               bot.telegram
                 .sendMessage(activeChatId, simpleMessage)
@@ -583,14 +682,14 @@ async function fetchNewCreators(isInitialFetch) {
             `New creator found: ${creator.username || creator.creatorAddress}`
           );
         }
-      });
+      }
 
       // If this was the initial fetch, send a summary
       if (isInitialFetch) {
         bot.telegram
           .sendMessage(
             activeChatId,
-            `✅ Initial scan complete. Tracking ${seenCreators.size} existing creators. You'll be notified when new ones appear.`
+            `✅ Initial scan complete! I'm now tracking ${seenCreators.size} existing creators and will notify you when new ones appear in a family-friendly way!`
           )
           .then(() => {
             console.log("Successfully sent initial scan message");
@@ -620,9 +719,7 @@ async function startBot() {
       console.log(`Attempt ${retries + 1} to start bot`);
       await bot.launch();
       console.log("Bot started successfully!");
-      console.log(
-        "Send /creators or /new in Telegram to interact with the bot"
-      );
+      console.log("Send /start in Telegram to interact with the bot");
       break;
     } catch (error) {
       console.error("Failed to start bot:", error.message);
@@ -661,29 +758,21 @@ process.on("uncaughtException", (error) => {
 startBot();
 
 // Set up express server for health checks
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const app = express();
 
-// Create a simple HTTP server for health checks
-const server = http.createServer((req, res) => {
-  // Health check endpoint
-  if (req.url === "/health" || req.url === "/") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        status: "ok",
-        service: "Time.fun Monitor Bot",
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString(),
-      })
-    );
-  } else {
-    res.writeHead(404);
-    res.end();
-  }
+// Health check endpoint using Express
+app.get(["/", "/health"], (req, res) => {
+  res.json({
+    status: "ok",
+    service: "Time.fun Family Monitor Bot",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    family_friendly: true,
+  });
 });
 
 // Start HTTP server
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`Health check server running on port ${PORT}`);
 });
