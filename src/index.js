@@ -527,8 +527,8 @@ bot.on("text", (ctx) => {
 // Function to format contract address for easy copying
 function formatContractAddress(address) {
   if (!address) return "";
-  // Use plain text formatting with clear instructions
-  return `\n📋 Contract: ${address}\n\nTo copy, tap and hold on the address above`;
+  // Using backticks for monospace which enables one-click copying in Telegram
+  return `\n📋 Contract (click to copy):\n\`${address}\``;
 }
 
 // Function to fetch new creators
@@ -800,8 +800,8 @@ bot.command(["copy", "Copy", "COPY"], async (ctx) => {
 
       if (contractAddress) {
         ctx.reply(
-          `Here's the contract address for easy copying:\n\n${contractAddress}`,
-          { parse_mode: "HTML" }
+          `Here's the contract address (click to copy):\n\n\`${contractAddress}\``,
+          { parse_mode: "Markdown" }
         );
       } else {
         ctx.reply(
