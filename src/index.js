@@ -21,12 +21,12 @@ bot.use((ctx, next) => {
   return next();
 });
 
-// Store seen creators
-const seenCreators = new Set();
+// Store seen creators (with timestamp for cleanup)
+const seenCreators = new Map(); // Map<address, timestamp>
 // Track if monitoring is active
 let isMonitoringActive = false;
-// Store active chat ID
-let activeChatId = null;
+// Store active chat IDs with last successful message timestamp
+const activeChats = new Map(); // Map<chatId, lastMessageTime>
 // Track monitoring intervals
 let monitoringInterval = null;
 // Store the most recent creator
@@ -36,6 +36,8 @@ const whitelistedUsers = new Set();
 // Frequency settings for family-friendly notifications (in milliseconds)
 const CHECK_INTERVAL = 4000; // Check every 10 seconds
 const NOTIFICATION_LIMIT = 10; // Maximum notifications per hour
+const MAX_RETRIES = 3; // Maximum retries for failed messages
+const RETRY_DELAY = 1000; // Delay between retries in ms
 let notificationCount = 0;
 let lastResetTime = Date.now();
 
@@ -334,7 +336,7 @@ function checkRateLimit() {
 bot.command(["daily", "Daily", "DAILY"], (ctx) => {
   console.log("Received /daily command");
   try {
-    activeChatId = ctx.chat.id;
+    const chatId = ctx.chat.id;
     whitelistedUsers.add(ctx.from.id);
 
     ctx
@@ -352,12 +354,18 @@ bot.command(["daily", "Daily", "DAILY"], (ctx) => {
   }
 });
 
-// Monitor command (renamed from start to avoid conflict with bot.start)
+// Monitor command
 bot.command(["monitor", "Monitor", "MONITOR"], (ctx) => {
   console.log("Received /monitor command");
   try {
-    activeChatId = ctx.chat.id;
+    const chatId = ctx.chat.id;
     whitelistedUsers.add(ctx.from.id);
+
+    // Add this chat to active chats with current timestamp
+    activeChats.set(chatId, Date.now());
+    console.log(
+      `Added chat ID ${chatId} to active chats. Total active: ${activeChats.size}`
+    );
 
     if (!isMonitoringActive) {
       isMonitoringActive = true;
@@ -372,25 +380,23 @@ bot.command(["monitor", "Monitor", "MONITOR"], (ctx) => {
           console.error("Error sending monitoring start message:", error);
         });
 
-      console.log(`Monitoring started by chat ID: ${activeChatId}`);
-
       // Initial fetch
       fetchNewCreators(true);
 
-      // Set up recurring monitoring with family-friendly timing
+      // Set up recurring monitoring
       monitoringInterval = setInterval(() => {
         fetchNewCreators(false);
       }, CHECK_INTERVAL);
     } else {
       ctx
         .reply(
-          "📱 Monitoring is already active! I'm keeping an eye out for new creators."
+          "📱 Monitoring is now active for you! I'll keep you updated about new creators."
         )
         .then(() => {
-          console.log("Successfully sent already active message");
+          console.log("Successfully sent monitoring active message");
         })
         .catch((error) => {
-          console.error("Error sending already active message:", error);
+          console.error("Error sending monitoring active message:", error);
         });
     }
   } catch (error) {
@@ -402,39 +408,33 @@ bot.command(["monitor", "Monitor", "MONITOR"], (ctx) => {
 bot.command(["stop", "Stop", "STOP"], (ctx) => {
   console.log("Received /stop command");
   try {
-    if (isMonitoringActive) {
-      isMonitoringActive = false;
+    const chatId = ctx.chat.id;
 
-      // Clear the interval
+    // Remove this chat from active chats
+    activeChats.delete(chatId);
+    console.log(
+      `Removed chat ID ${chatId} from active chats. Remaining active: ${activeChats.size}`
+    );
+
+    // Only stop monitoring completely if no active chats remain
+    if (activeChats.size === 0) {
+      isMonitoringActive = false;
       if (monitoringInterval) {
         clearInterval(monitoringInterval);
         monitoringInterval = null;
       }
-
-      ctx
-        .reply(
-          "⏸️ Monitoring paused. Use /monitor to resume when you're ready!"
-        )
-        .then(() => {
-          console.log("Successfully sent monitoring stopped message");
-        })
-        .catch((error) => {
-          console.error("Error sending monitoring stopped message:", error);
-        });
-
-      console.log("Monitoring stopped");
-    } else {
-      ctx
-        .reply(
-          "ℹ️ Monitoring is not currently active. Use /monitor to start watching for new creators!"
-        )
-        .then(() => {
-          console.log("Successfully sent not active message");
-        })
-        .catch((error) => {
-          console.error("Error sending not active message:", error);
-        });
     }
+
+    ctx
+      .reply(
+        "⏸️ Monitoring paused for you. Use /monitor to resume when you're ready!"
+      )
+      .then(() => {
+        console.log("Successfully sent monitoring stopped message");
+      })
+      .catch((error) => {
+        console.error("Error sending monitoring stopped message:", error);
+      });
   } catch (error) {
     console.error("Error in stop command:", error);
   }
@@ -444,7 +444,10 @@ bot.command(["stop", "Stop", "STOP"], (ctx) => {
 bot.command(["status", "Status", "STATUS"], (ctx) => {
   console.log("Received /status command");
   try {
-    if (isMonitoringActive) {
+    const chatId = ctx.chat.id;
+    const isActiveForUser = activeChats.has(chatId);
+
+    if (isMonitoringActive && isActiveForUser) {
       ctx
         .reply(
           "✅ Monitoring is active and running. I'm watching for new creators for you!"
@@ -458,7 +461,7 @@ bot.command(["status", "Status", "STATUS"], (ctx) => {
     } else {
       ctx
         .reply(
-          "⏸️ Monitoring is paused. Use /monitor to start watching for new creators!"
+          "⏸️ Monitoring is paused for you. Use /monitor to start watching for new creators!"
         )
         .then(() => {
           console.log("Successfully sent status inactive message");
@@ -531,9 +534,52 @@ function formatContractAddress(address) {
   return `\n📋 Contract (click to copy):\n\`${address}\``;
 }
 
+// Function to send message to all active chats with retries
+async function sendToAllActiveChats(messageFunc) {
+  const now = Date.now();
+  const failedChats = new Set();
+
+  for (const [chatId, lastMessageTime] of activeChats) {
+    let retries = 0;
+    let success = false;
+
+    while (retries < MAX_RETRIES && !success) {
+      try {
+        await messageFunc(chatId);
+        success = true;
+        activeChats.set(chatId, now); // Update last successful message time
+        console.log(
+          `Successfully sent message to chat ${chatId} (attempt ${retries + 1})`
+        );
+      } catch (error) {
+        retries++;
+        console.error(
+          `Error sending message to chat ${chatId} (attempt ${retries}):`,
+          error.message
+        );
+
+        if (retries < MAX_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+        } else {
+          failedChats.add(chatId);
+          console.error(
+            `Failed to send message to chat ${chatId} after ${MAX_RETRIES} attempts`
+          );
+        }
+      }
+    }
+  }
+
+  // Remove chats that consistently fail to receive messages
+  for (const failedChatId of failedChats) {
+    activeChats.delete(failedChatId);
+    console.log(`Removed unresponsive chat ${failedChatId}`);
+  }
+}
+
 // Function to fetch new creators
 async function fetchNewCreators(isInitialFetch) {
-  if (!isMonitoringActive || !activeChatId) return;
+  if (!isMonitoringActive || activeChats.size === 0) return;
 
   try {
     const response = await axios.get(
@@ -560,7 +606,8 @@ async function fetchNewCreators(isInitialFetch) {
           !seenCreators.has(creator.creatorAddress)
         ) {
           // We found a new creator
-          seenCreators.add(creator.creatorAddress);
+          const now = Date.now();
+          seenCreators.set(creator.creatorAddress, now);
 
           // Only send messages if this is not the initial fetch
           if (!isInitialFetch) {
@@ -624,48 +671,22 @@ async function fetchNewCreators(isInitialFetch) {
 
               // Send with image if available
               if (creator.image) {
-                bot.telegram
-                  .sendPhoto(
-                    activeChatId,
+                await sendToAllActiveChats(async (chatId) => {
+                  await bot.telegram.sendPhoto(
+                    chatId,
                     { url: creator.image },
                     {
                       caption: message,
                       parse_mode: "HTML",
                     }
-                  )
-                  .then(() => {
-                    console.log(
-                      `Successfully sent notification for new creator with image: ${
-                        creator.username || creator.creatorAddress
-                      }`
-                    );
-                  })
-                  .catch((error) => {
-                    console.error(
-                      "Error sending creator image:",
-                      error.message
-                    );
-                    // Fall back to text-only message
-                    bot.telegram.sendMessage(activeChatId, message, {
-                      parse_mode: "HTML",
-                    });
-                  });
+                  );
+                });
               } else {
-                bot.telegram
-                  .sendMessage(activeChatId, message, { parse_mode: "HTML" })
-                  .then(() => {
-                    console.log(
-                      `Successfully sent notification for new creator: ${
-                        creator.username || creator.creatorAddress
-                      }`
-                    );
-                  })
-                  .catch((error) => {
-                    console.error(
-                      "Error sending Telegram message:",
-                      error.message
-                    );
+                await sendToAllActiveChats(async (chatId) => {
+                  await bot.telegram.sendMessage(chatId, message, {
+                    parse_mode: "HTML",
                   });
+                });
               }
             } catch (error) {
               console.error("Error formatting creator message:", error.message);
@@ -675,16 +696,11 @@ async function fetchNewCreators(isInitialFetch) {
                 creator.username || "N/A"
               }\n🔗 Link: https://time.fun/${creator.username || ""}`;
 
-              bot.telegram
-                .sendMessage(activeChatId, simpleMessage, {
+              await sendToAllActiveChats(async (chatId) => {
+                await bot.telegram.sendMessage(chatId, simpleMessage, {
                   parse_mode: "HTML",
-                })
-                .catch((error) =>
-                  console.error(
-                    "Error sending fallback message:",
-                    error.message
-                  )
-                );
+                });
+              });
             }
           }
 
@@ -696,18 +712,13 @@ async function fetchNewCreators(isInitialFetch) {
 
       // If this was the initial fetch, send a summary
       if (isInitialFetch) {
-        bot.telegram
-          .sendMessage(
-            activeChatId,
+        await sendToAllActiveChats(async (chatId) => {
+          await bot.telegram.sendMessage(
+            chatId,
             `✅ Initial scan complete! I'm now tracking ${seenCreators.size} existing creators and will notify you when new ones appear in a family-friendly way!`,
             { parse_mode: "HTML" }
-          )
-          .then(() => {
-            console.log("Successfully sent initial scan message");
-          })
-          .catch((error) => {
-            console.error("Error sending initial scan message:", error.message);
-          });
+          );
+        });
       }
     }
   } catch (error) {
