@@ -164,7 +164,10 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
           await ctx
             .replyWithPhoto(
               { url: latestCreatorData.image },
-              { caption: message }
+              {
+                caption: message,
+                parse_mode: "HTML",
+              }
             )
             .then(() => {
               console.log(
@@ -174,11 +177,11 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
             .catch((error) => {
               console.error("Error sending creator image:", error);
               // Fall back to text-only message if image sending fails
-              ctx.reply(message);
+              ctx.reply(message, { parse_mode: "HTML" });
             });
         } else {
           ctx
-            .reply(message)
+            .reply(message, { parse_mode: "HTML" })
             .then(() => {
               console.log("Successfully sent latest creator message");
             })
@@ -195,7 +198,7 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
         }\n🔗 Link: https://time.fun/${latestCreatorData.username || ""}`;
 
         ctx
-          .reply(message)
+          .reply(message, { parse_mode: "HTML" })
           .then(() => {
             console.log("Successfully sent basic creator message as fallback");
           })
@@ -524,8 +527,8 @@ bot.on("text", (ctx) => {
 // Function to format contract address for easy copying
 function formatContractAddress(address) {
   if (!address) return "";
-  // Using Telegram's HTML formatting for easy copying
-  return `\n📋 Contract (click to copy):\n<code>${address}</code>`;
+  // Use plain text formatting with clear instructions
+  return `\n📋 Contract: ${address}\n\nTo copy, tap and hold on the address above`;
 }
 
 // Function to fetch new creators
@@ -625,7 +628,10 @@ async function fetchNewCreators(isInitialFetch) {
                   .sendPhoto(
                     activeChatId,
                     { url: creator.image },
-                    { caption: message }
+                    {
+                      caption: message,
+                      parse_mode: "HTML",
+                    }
                   )
                   .then(() => {
                     console.log(
@@ -640,11 +646,13 @@ async function fetchNewCreators(isInitialFetch) {
                       error.message
                     );
                     // Fall back to text-only message
-                    bot.telegram.sendMessage(activeChatId, message);
+                    bot.telegram.sendMessage(activeChatId, message, {
+                      parse_mode: "HTML",
+                    });
                   });
               } else {
                 bot.telegram
-                  .sendMessage(activeChatId, message)
+                  .sendMessage(activeChatId, message, { parse_mode: "HTML" })
                   .then(() => {
                     console.log(
                       `Successfully sent notification for new creator: ${
@@ -668,7 +676,9 @@ async function fetchNewCreators(isInitialFetch) {
               }\n🔗 Link: https://time.fun/${creator.username || ""}`;
 
               bot.telegram
-                .sendMessage(activeChatId, simpleMessage)
+                .sendMessage(activeChatId, simpleMessage, {
+                  parse_mode: "HTML",
+                })
                 .catch((error) =>
                   console.error(
                     "Error sending fallback message:",
@@ -689,7 +699,8 @@ async function fetchNewCreators(isInitialFetch) {
         bot.telegram
           .sendMessage(
             activeChatId,
-            `✅ Initial scan complete! I'm now tracking ${seenCreators.size} existing creators and will notify you when new ones appear in a family-friendly way!`
+            `✅ Initial scan complete! I'm now tracking ${seenCreators.size} existing creators and will notify you when new ones appear in a family-friendly way!`,
+            { parse_mode: "HTML" }
           )
           .then(() => {
             console.log("Successfully sent initial scan message");
@@ -775,4 +786,35 @@ app.get(["/", "/health"], (req, res) => {
 // Start HTTP server
 app.listen(PORT, () => {
   console.log(`Health check server running on port ${PORT}`);
+});
+
+// Add a new copy command to easily copy contract addresses
+bot.command(["copy", "Copy", "COPY"], async (ctx) => {
+  console.log("Received /copy command");
+
+  try {
+    if (latestCreator && latestCreator.solanaAddress) {
+      const contractAddress = await getContractAddress(
+        latestCreator.solanaAddress
+      );
+
+      if (contractAddress) {
+        ctx.reply(
+          `Here's the contract address for easy copying:\n\n${contractAddress}`,
+          { parse_mode: "HTML" }
+        );
+      } else {
+        ctx.reply(
+          "Sorry, I couldn't find a contract address for the latest creator."
+        );
+      }
+    } else {
+      ctx.reply(
+        "There's no latest creator information available yet. Try using /latest first."
+      );
+    }
+  } catch (error) {
+    console.error("Error in copy command:", error);
+    ctx.reply("Sorry, there was an error getting the contract address.");
+  }
 });
