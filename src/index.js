@@ -273,8 +273,62 @@ async function getContractAddress(solanaAddress) {
     const res = await axios.get(url);
     const results = res.data;
 
-    // Index 4 corresponds to timeMarket.getCreatorTimeMarket
-    const mintAddress = results?.[4]?.result?.data?.json?.mintAddress;
+    if (!Array.isArray(results)) {
+      console.error("Expected array of results but got:", typeof results);
+      return null;
+    }
+
+    // Helper function to recursively search for mintAddress in an object
+    function findMintAddress(obj) {
+      if (!obj || typeof obj !== "object") return null;
+
+      // Direct match
+      if (obj.mintAddress) return obj.mintAddress;
+
+      // Check if it's in json property
+      if (obj.result?.data?.json?.mintAddress) {
+        return obj.result.data.json.mintAddress;
+      }
+
+      // Deep search in nested objects
+      for (const key in obj) {
+        if (typeof obj[key] === "object") {
+          const found = findMintAddress(obj[key]);
+          if (found) return found;
+        }
+      }
+
+      return null;
+    }
+
+    // First try the known timeMarket.getCreatorTimeMarket index
+    let mintAddress = findMintAddress(results[4]);
+
+    // If not found, search through all results
+    if (!mintAddress) {
+      console.log(
+        "Mint address not found at expected index, searching all results..."
+      );
+      for (let i = 0; i < results.length; i++) {
+        if (i === 4) continue; // Skip already checked index
+        mintAddress = findMintAddress(results[i]);
+        if (mintAddress) {
+          console.log(`Found mint address in result index ${i}`);
+          break;
+        }
+      }
+    }
+
+    if (!mintAddress) {
+      console.log(
+        "No mint address found in any result. Response structure:",
+        JSON.stringify(
+          results.map((r) => Object.keys(r)),
+          null,
+          2
+        )
+      );
+    }
 
     return mintAddress || null;
   } catch (err) {
