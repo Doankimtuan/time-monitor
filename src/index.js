@@ -279,30 +279,78 @@ async function getContractAddress(solanaAddress) {
     }
 
     // Helper function to recursively search for mintAddress in an object
-    function findMintAddress(obj) {
+    function findMintAddress(obj, foundAddresses = new Set()) {
       if (!obj || typeof obj !== "object") return null;
 
-      // Direct match
-      if (obj.mintAddress) return obj.mintAddress;
-
-      // Check if it's in json property
-      if (obj.result?.data?.json?.mintAddress) {
-        return obj.result.data.json.mintAddress;
-      }
-
-      // Deep search in nested objects
-      for (const key in obj) {
-        if (typeof obj[key] === "object") {
-          const found = findMintAddress(obj[key]);
+      // Handle arrays
+      if (Array.isArray(obj)) {
+        for (const item of obj) {
+          const found = findMintAddress(item, foundAddresses);
           if (found) return found;
         }
+        return null;
+      }
+
+      // Check for direct mintAddress property
+      if (
+        obj.mintAddress &&
+        typeof obj.mintAddress === "string" &&
+        obj.mintAddress.length > 0
+      ) {
+        foundAddresses.add(obj.mintAddress);
+        return obj.mintAddress;
+      }
+
+      // Check common paths first
+      const commonPaths = [
+        ["result", "data", "json", "mintAddress"],
+        ["data", "json", "mintAddress"],
+        ["json", "mintAddress"],
+        ["data", "mintAddress"],
+      ];
+
+      for (const path of commonPaths) {
+        let current = obj;
+        let valid = true;
+        for (const key of path) {
+          if (!current || typeof current !== "object") {
+            valid = false;
+            break;
+          }
+          current = current[key];
+        }
+        if (
+          valid &&
+          current &&
+          typeof current === "string" &&
+          current.length > 0
+        ) {
+          foundAddresses.add(current);
+          return current;
+        }
+      }
+
+      // Deep search in all object properties
+      for (const key in obj) {
+        if (typeof obj[key] === "object") {
+          const found = findMintAddress(obj[key], foundAddresses);
+          if (found) return found;
+        }
+      }
+
+      // If we found any addresses during the search, return the first one
+      if (foundAddresses.size > 0) {
+        return Array.from(foundAddresses)[0];
       }
 
       return null;
     }
 
+    // Create a Set to store all found mintAddresses
+    const foundAddresses = new Set();
+
     // First try the known timeMarket.getCreatorTimeMarket index
-    let mintAddress = findMintAddress(results[4]);
+    let mintAddress = findMintAddress(results[4], foundAddresses);
 
     // If not found, search through all results
     if (!mintAddress) {
@@ -311,17 +359,26 @@ async function getContractAddress(solanaAddress) {
       );
       for (let i = 0; i < results.length; i++) {
         if (i === 4) continue; // Skip already checked index
-        mintAddress = findMintAddress(results[i]);
-        if (mintAddress) {
+        const found = findMintAddress(results[i], foundAddresses);
+        if (found) {
           console.log(`Found mint address in result index ${i}`);
+          mintAddress = found;
           break;
         }
       }
     }
 
+    // If still not found, try searching the entire response object
+    if (!mintAddress && foundAddresses.size === 0) {
+      console.log("Searching entire response object...");
+      mintAddress = findMintAddress(results, foundAddresses);
+    }
+
     if (!mintAddress) {
       console.log(
-        "No mint address found in any result. Response structure:",
+        "No mint address found in any result. Found addresses:",
+        Array.from(foundAddresses),
+        "\nResponse structure:",
         JSON.stringify(
           results.map((r) => Object.keys(r)),
           null,
