@@ -274,6 +274,8 @@ async function getContractAddress(solanaAddress) {
     const res = await axios.get(url);
     const results = res.data;
 
+    console.log(results);
+
     // Index 4 corresponds to timeMarket.getCreatorTimeMarket
     const mintAddress =
       results?.[30]?.result?.data?.json?.[2]?.[0]?.[0]?.mintAddress;
