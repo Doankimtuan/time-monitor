@@ -147,9 +147,7 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
           xUrl = `\n🔗 X: https://x.com/${xUsername}`;
         }
 
-        const contractAddress = await getContractAddress(
-          latestCreatorData.solanaAddress
-        );
+        const contractAddress = latestCreatorData.mintAddress;
 
         const contractInfo = contractAddress
           ? formatContractAddress(contractAddress)
@@ -228,64 +226,6 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
     );
   }
 });
-
-// Get the contract address from the solana address
-async function getContractAddress(solanaAddress) {
-  const procedures = [
-    "creators.getSocials",
-    "creators.checkIfOnWatchlist",
-    "timeMarket.getUserTimeValue",
-    "creators.getCreatorDonations",
-    "timeMarket.getCreatorTimeMarket", // << we want this one!
-    "timeMarket.getTimeMarketState",
-    "rewards.fetchTotalAwardPool",
-    "timeMarket.getTimeMarketStats",
-    "creators.checkPoolMigration",
-    "auth.getAccessToken",
-    "creators.priceChartOhlc",
-    "timeMarket.hasTimeMarket",
-    "timeMarket.getBondingProgress",
-    "timeMarket.getUserUsdcBalance",
-  ];
-
-  // Map of input objects for each procedure (indexed by order)
-  const input = {
-    0: { json: { solanaAddress } },
-    1: { json: { creatorAddress: solanaAddress } },
-    2: { json: { creatorAddress: solanaAddress } },
-    3: { json: { creatorAddress: solanaAddress } },
-    4: { json: { address: solanaAddress } }, // timeMarket.getCreatorTimeMarket
-    5: { json: { creatorAddress: solanaAddress } },
-    6: { json: { creatorAddress: solanaAddress } },
-    7: { json: { creatorAddress: solanaAddress } },
-    8: { json: { creatorAddress: solanaAddress } },
-    9: { json: null, meta: { values: ["undefined"] } },
-    10: { json: { creatorAddress: solanaAddress, minutesInterval: 15 } },
-    11: { json: { creatorAddress: solanaAddress } },
-    12: { json: { creatorAddress: solanaAddress } },
-    13: { json: null, meta: { values: ["undefined"] } },
-  };
-
-  const url = `https://time.fun/api/trpc/${procedures.join(
-    ","
-  )}?batch=1&input=${encodeURIComponent(JSON.stringify(input))}`;
-
-  try {
-    const res = await axios.get(url);
-    const results = res.data;
-
-    console.log(results);
-
-    // Index 4 corresponds to timeMarket.getCreatorTimeMarket
-    const mintAddress =
-      results?.[30]?.result?.data?.json?.[2]?.[0]?.[0]?.mintAddress;
-
-    return mintAddress || null;
-  } catch (err) {
-    console.error("Error fetching contract address:", err.message);
-    return null;
-  }
-}
 
 // Function to get the latest creator
 async function getLatestCreator() {
@@ -658,9 +598,7 @@ async function fetchNewCreators(isInitialFetch) {
               }
 
               // Get contract address
-              const contractAddress = await getContractAddress(
-                creator.creatorAddress
-              );
+              const contractAddress = creator.mintAddress;
 
               const contractInfo = contractAddress
                 ? formatContractAddress(contractAddress)
@@ -809,9 +747,7 @@ bot.command(["copy", "Copy", "COPY"], async (ctx) => {
 
   try {
     if (latestCreator && latestCreator.solanaAddress) {
-      const contractAddress = await getContractAddress(
-        latestCreator.solanaAddress
-      );
+      const contractAddress = latestCreator.mintAddress;
 
       if (contractAddress) {
         ctx.reply(
