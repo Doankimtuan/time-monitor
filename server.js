@@ -55,7 +55,8 @@ bot.start((ctx) => {
           `This bot tracks new creators on time.fun and notifies you when new ones appear.\n\n` +
           `To start monitoring, send the /monitor command.\n` +
           `To see the latest creator, use /latest.\n` +
-          `For more commands, type /help.`
+          `For more commands, type /help.\n\n` +
+          `💡 If you're on Vercel and having issues, try /setup to configure the webhook.`
       )
       .then(() => {
         console.log("Successfully sent welcome message");
@@ -81,6 +82,8 @@ bot.help((ctx) => {
           "/latest - Show the most recent creator\n" +
           "/status - Check if monitoring is active\n" +
           "/stats - Show how many creators are being tracked\n" +
+          "/copy - Copy the latest creator's contract address\n" +
+          "/setup - Set up webhook (for debugging)\n" +
           "/help - Show this help message"
       )
       .then(() => {
@@ -458,6 +461,10 @@ bot.on("text", (ctx) => {
     return ctx.reply("Did you mean /latest? Use commands with the / prefix.");
   } else if (text === "daily") {
     return ctx.reply("Did you mean /daily? Use commands with the / prefix.");
+  } else if (text === "copy") {
+    return ctx.reply("Did you mean /copy? Use commands with the / prefix.");
+  } else if (text === "setup") {
+    return ctx.reply("Did you mean /setup? Use commands with the / prefix.");
   }
 
   // Friendly message for any other text
@@ -669,33 +676,38 @@ async function fetchNewCreators(isInitialFetch) {
   }
 }
 
-// Start the bot with retry logic
+// Start the bot with webhook setup for serverless environment
 async function startBot() {
-  console.log("Starting the bot...");
+  console.log("Setting up bot for serverless environment...");
 
-  // No need to validate token since it's now hardcoded
+  try {
+    // Get the webhook URL from environment or construct it
+    const webhookUrl =
+      process.env.WEBHOOK_URL ||
+      `https://${process.env.VERCEL_URL || "localhost:3000"}/webhook`;
 
-  let retries = 0;
-  const maxRetries = 3;
+    console.log(`Setting webhook to: ${webhookUrl}`);
 
-  while (retries < maxRetries) {
-    try {
-      console.log(`Attempt ${retries + 1} to start bot`);
-      await bot.launch();
-      console.log("Bot started successfully!");
-      console.log("Send /start in Telegram to interact with the bot");
-      break;
-    } catch (error) {
-      console.error("Failed to start bot:", error.message);
-      retries++;
-      if (retries < maxRetries) {
-        console.log(`Retrying in 5 seconds... (${retries}/${maxRetries})`);
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-      } else {
-        console.error("Max retries reached. Could not start the bot.");
-        // Don't exit - let the server still run for health checks
-      }
+    // Only set webhook if we're not on localhost with non-standard port
+    if (
+      process.env.NODE_ENV === "production" ||
+      process.env.VERCEL_URL ||
+      webhookUrl.includes("vercel.app")
+    ) {
+      // Set the webhook
+      await bot.telegram.setWebhook(webhookUrl);
+      console.log("Bot webhook set successfully!");
+    } else {
+      console.log(
+        "Skipping webhook setup for local development (use /setup command to configure manually)"
+      );
     }
+
+    console.log("Send /start in Telegram to interact with the bot");
+  } catch (error) {
+    console.error("Failed to set webhook:", error.message);
+    console.error("Bot will still be available via webhook endpoint");
+    console.error("Use /setup command to configure webhook manually");
   }
 }
 
@@ -717,9 +729,6 @@ process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error.message);
   // Keep the application running despite errors
 });
-
-// Start the bot
-startBot();
 
 // Add a new copy command to easily copy contract addresses
 bot.command(["copy", "Copy", "COPY"], async (ctx) => {
@@ -750,9 +759,32 @@ bot.command(["copy", "Copy", "COPY"], async (ctx) => {
   }
 });
 
-// Set up express server for health checks
+// Add a webhook setup command for debugging
+bot.command(["setup", "Setup", "SETUP"], async (ctx) => {
+  console.log("Received /setup command");
+
+  try {
+    const webhookUrl =
+      process.env.WEBHOOK_URL ||
+      `https://${process.env.VERCEL_URL || "localhost:3000"}/webhook`;
+    await bot.telegram.setWebhook(webhookUrl);
+
+    ctx.reply(
+      `✅ Webhook set successfully!\n\nWebhook URL: \`${webhookUrl}\`\n\nYou can now send messages to the bot.`,
+      { parse_mode: "Markdown" }
+    );
+  } catch (error) {
+    console.error("Error setting webhook:", error);
+    ctx.reply("❌ Failed to set webhook. Please check the logs.");
+  }
+});
+
+// Set up express server for health checks and webhook
 const PORT = process.env.PORT || 3000;
 const app = express();
+
+// Add JSON body parser for webhook
+app.use(express.json());
 
 // Health check endpoint using Express
 app.get(["/", "/health"], (req, res) => {
@@ -765,7 +797,22 @@ app.get(["/", "/health"], (req, res) => {
   });
 });
 
-// Start HTTP server
-app.listen(PORT, () => {
-  console.log(`Health check server running on port ${PORT}`);
+// Webhook endpoint for Telegram
+app.post("/webhook", async (req, res) => {
+  try {
+    console.log("Received webhook:", JSON.stringify(req.body, null, 2));
+    await bot.handleUpdate(req.body);
+    res.sendStatus(200);
+  } catch (error) {
+    console.error("Error handling webhook:", error);
+    res.sendStatus(500);
+  }
+});
+
+// Start HTTP server and initialize bot
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+
+  // Initialize the bot after server starts
+  await startBot();
 });

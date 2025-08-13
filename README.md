@@ -48,7 +48,22 @@ The bot will automatically send you a notification whenever a new creator appear
 
 ## Deployment
 
-This bot can be easily deployed to Railway.com. See [RAILWAY.md](RAILWAY.md) for Railway-specific deployment instructions or [DEPLOYMENT.md](DEPLOYMENT.md) for other hosting options.
+This bot can be easily deployed to Railway.com or Vercel. See [RAILWAY.md](RAILWAY.md) for Railway-specific deployment instructions or [DEPLOYMENT.md](DEPLOYMENT.md) for other hosting options.
+
+### Vercel Deployment
+
+1. Deploy to Vercel using the Vercel CLI or by connecting your GitHub repository
+2. Set the following environment variables in your Vercel project:
+   - `WEBHOOK_URL`: Your Vercel app URL + `/webhook` (e.g., `https://your-app.vercel.app/webhook`)
+3. After deployment, the bot will automatically set up the webhook
+4. If you encounter issues, use the `/setup` command in Telegram to manually set the webhook
+
+### Troubleshooting Vercel Issues
+
+If you see "Client network socket disconnected before secure TLS connection was established" error:
+- This is fixed by using webhook mode instead of polling
+- The bot now automatically sets up webhooks for serverless environments
+- Use `/setup` command to manually configure the webhook if needed
 
 ## License
 
