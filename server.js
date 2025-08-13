@@ -721,26 +721,6 @@ process.on("uncaughtException", (error) => {
 // Start the bot
 startBot();
 
-// Set up express server for health checks
-const PORT = process.env.PORT || 3000;
-const app = express();
-
-// Health check endpoint using Express
-app.get(["/", "/health"], (req, res) => {
-  res.json({
-    status: "ok",
-    service: "Time.fun Family Monitor Bot",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    family_friendly: true,
-  });
-});
-
-// Start HTTP server
-app.listen(PORT, () => {
-  console.log(`Health check server running on port ${PORT}`);
-});
-
 // Add a new copy command to easily copy contract addresses
 bot.command(["copy", "Copy", "COPY"], async (ctx) => {
   console.log("Received /copy command");
@@ -768,4 +748,24 @@ bot.command(["copy", "Copy", "COPY"], async (ctx) => {
     console.error("Error in copy command:", error);
     ctx.reply("Sorry, there was an error getting the contract address.");
   }
+});
+
+// Set up express server for health checks
+const PORT = process.env.PORT || 3000;
+const app = express();
+
+// Health check endpoint using Express
+app.get(["/", "/health"], (req, res) => {
+  res.json({
+    status: "ok",
+    service: "Time.fun Family Monitor Bot",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    family_friendly: true,
+  });
+});
+
+// Start HTTP server
+app.listen(PORT, () => {
+  console.log(`Health check server running on port ${PORT}`);
 });
