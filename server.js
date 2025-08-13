@@ -84,6 +84,8 @@ bot.help((ctx) => {
           "/stats - Show how many creators are being tracked\n" +
           "/copy - Copy the latest creator's contract address\n" +
           "/setup - Set up webhook (for debugging)\n" +
+          "/polling - Switch to polling mode (for local development)\n" +
+          "/info - Show bot information and current mode\n" +
           "/help - Show this help message"
       )
       .then(() => {
@@ -465,6 +467,8 @@ bot.on("text", (ctx) => {
     return ctx.reply("Did you mean /copy? Use commands with the / prefix.");
   } else if (text === "setup") {
     return ctx.reply("Did you mean /setup? Use commands with the / prefix.");
+  } else if (text === "polling") {
+    return ctx.reply("Did you mean /polling? Use commands with the / prefix.");
   }
 
   // Friendly message for any other text
@@ -688,24 +692,36 @@ async function startBot() {
 
     console.log(`Setting webhook to: ${webhookUrl}`);
 
-    // Only set webhook if we're not on localhost with non-standard port
-    if (
+    // Check if we're in production (Vercel) or local development
+    const isProduction =
       process.env.NODE_ENV === "production" ||
       process.env.VERCEL_URL ||
-      webhookUrl.includes("vercel.app")
-    ) {
-      // Set the webhook
+      webhookUrl.includes("vercel.app");
+
+    if (isProduction) {
+      // Set the webhook for production
       await bot.telegram.setWebhook(webhookUrl);
-      console.log("Bot webhook set successfully!");
+      console.log("Bot webhook set successfully for production!");
     } else {
-      console.log(
-        "Skipping webhook setup for local development (use /setup command to configure manually)"
-      );
+      // Use polling for local development
+      console.log("Starting bot in polling mode for local development...");
+
+      // Delete any existing webhook first
+      try {
+        await bot.telegram.deleteWebhook();
+        console.log("Deleted existing webhook");
+      } catch (error) {
+        console.log("No existing webhook to delete");
+      }
+
+      // Start polling
+      await bot.launch();
+      console.log("Bot started in polling mode successfully!");
     }
 
     console.log("Send /start in Telegram to interact with the bot");
   } catch (error) {
-    console.error("Failed to set webhook:", error.message);
+    console.error("Failed to start bot:", error.message);
     console.error("Bot will still be available via webhook endpoint");
     console.error("Use /setup command to configure webhook manually");
   }
@@ -779,6 +795,56 @@ bot.command(["setup", "Setup", "SETUP"], async (ctx) => {
   }
 });
 
+// Add a polling mode command for local development
+bot.command(["polling", "Polling", "POLLING"], async (ctx) => {
+  console.log("Received /polling command");
+
+  try {
+    // Delete webhook first
+    await bot.telegram.deleteWebhook();
+    console.log("Deleted webhook");
+
+    // Start polling
+    await bot.launch();
+    console.log("Started polling mode");
+
+    ctx.reply(
+      `✅ Switched to polling mode!\n\nBot is now polling for messages. This is perfect for local development.`
+    );
+  } catch (error) {
+    console.error("Error switching to polling:", error);
+    ctx.reply("❌ Failed to switch to polling mode. Please check the logs.");
+  }
+});
+
+// Add a bot info command to check current status
+bot.command(["info", "Info", "INFO"], async (ctx) => {
+  console.log("Received /info command");
+
+  try {
+    // Get bot info
+    const botInfo = await bot.telegram.getMe();
+
+    // Get webhook info
+    const webhookInfo = await bot.telegram.getWebhookInfo();
+
+    const status = webhookInfo.url ? "Webhook Mode" : "Polling Mode";
+    const webhookUrl = webhookInfo.url || "Not set (using polling)";
+
+    ctx.reply(
+      `🤖 Bot Information:\n\n` +
+        `Name: ${botInfo.first_name}\n` +
+        `Username: @${botInfo.username}\n` +
+        `Mode: ${status}\n` +
+        `Webhook URL: \`${webhookUrl}\``,
+      { parse_mode: "Markdown" }
+    );
+  } catch (error) {
+    console.error("Error getting bot info:", error);
+    ctx.reply("❌ Failed to get bot information. Please check the logs.");
+  }
+});
+
 // Set up express server for health checks and webhook
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -809,10 +875,32 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-// Start HTTP server and initialize bot
-app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
+// Start HTTP server and initialize bot with port fallback
+const startServer = async (port) => {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, async () => {
+      console.log(`Server running on port ${port}`);
 
-  // Initialize the bot after server starts
-  await startBot();
+      // Initialize the bot after server starts
+      await startBot();
+      resolve(server);
+    });
+
+    server.on("error", (error) => {
+      if (error.code === "EADDRINUSE") {
+        console.log(`Port ${port} is busy, trying port ${port + 1}...`);
+        server.close();
+        startServer(port + 1)
+          .then(resolve)
+          .catch(reject);
+      } else {
+        reject(error);
+      }
+    });
+  });
+};
+
+startServer(PORT).catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });
