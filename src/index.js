@@ -5,6 +5,11 @@ const axios = require("axios");
 const http = require("http");
 const express = require("express");
 
+// Moni API configuration
+const MONI_API_BASE_URL = "https://api.moni.ai";
+// Note: You'll need to add your Moni API key to environment variables
+const MONI_API_KEY = process.env.MONI_API_KEY || "your-moni-api-key-here";
+
 // Hardcoded bot token
 const BOT_TOKEN = "7720535612:AAHVCLI1JtlY0bJP_-rvlR-2N9zaJklx1Pg";
 
@@ -79,6 +84,7 @@ bot.help((ctx) => {
           "/monitor - Start monitoring for new creators\n" +
           "/stop - Stop monitoring\n" +
           "/latest - Show the most recent creator\n" +
+          "/brain <username> - Calculate brain points for X account\n" +
           "/status - Check if monitoring is active\n" +
           "/stats - Show how many creators are being tracked\n" +
           "/help - Show this help message"
@@ -137,14 +143,27 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
           timeInfo = `\n🕒 Created: ${creationDate.toLocaleString()}`;
         }
 
-        // Get the x url if image exists
+        // Get the x url if image exists and calculate brain points
         let xUrl = "";
+        let brainInfo = "";
         if (latestCreatorData.image) {
           const xUsername = latestCreatorData.image
             .split("/")
             .pop()
             .split(".")[0];
           xUrl = `\n🔗 X: https://x.com/${xUsername}`;
+          
+          // Calculate brain points for this X account
+          const brainData = await calculateBrainPoints(xUsername);
+          if (brainData) {
+            brainInfo = `\n🧠 Brain Points: ${brainData.brainPoints}`;
+            if (brainData.mentions > 0) {
+              brainInfo += `\n📊 Mentions (7d): ${brainData.mentions}`;
+            }
+            if (brainData.smartFollowers > 0) {
+              brainInfo += `\n👥 Smart Followers: ${brainData.smartFollowers}`;
+            }
+          }
         }
 
         const contractAddress = latestCreatorData.mintAddress;
@@ -156,7 +175,7 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
         // Send the enhanced creator info
         const message = `🌟 Latest Creator:\n\n👤 ${verifiedBadge}Username: ${
           latestCreatorData.username || "N/A"
-        }${priceInfo}${changeInfo}${timeInfo}\n\n🔗 Link: https://time.fun/${
+        }${priceInfo}${changeInfo}${timeInfo}${brainInfo}\n\n🔗 Link: https://time.fun/${
           latestCreatorData.username
         }${xUrl}${contractInfo}`;
 
@@ -226,6 +245,69 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
     );
   }
 });
+
+// Function to calculate brain points for an X account
+async function calculateBrainPoints(xUsername) {
+  if (!xUsername || !MONI_API_KEY || MONI_API_KEY === "your-moni-api-key-here") {
+    console.log("Missing X username or Moni API key for brain calculation");
+    return null;
+  }
+
+  try {
+    // Get account info and mindshare data from Moni API
+    const response = await axios.get(
+      `${MONI_API_BASE_URL}/api/v3/analytics/charts/mindshare/projects`,
+      {
+        headers: {
+          'Authorization': `Bearer ${MONI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        params: {
+          timeframe: 'D7', // Last 7 days
+          forAccounts: xUsername,
+          limit: 1
+        }
+      }
+    );
+
+    if (response.data && response.data.data) {
+      // Calculate brain points based on mindshare metrics
+      const mindshareData = response.data.data;
+      let brainPoints = 0;
+
+      // Brain calculation logic based on mindshare metrics
+      if (mindshareData.mentions) {
+        brainPoints += mindshareData.mentions * 0.5;
+      }
+      if (mindshareData.engagement) {
+        brainPoints += mindshareData.engagement * 0.3;
+      }
+      if (mindshareData.influence_score) {
+        brainPoints += mindshareData.influence_score * 2;
+      }
+      if (mindshareData.smart_followers) {
+        brainPoints += mindshareData.smart_followers * 0.1;
+      }
+
+      return {
+        brainPoints: Math.round(brainPoints),
+        mentions: mindshareData.mentions || 0,
+        engagement: mindshareData.engagement || 0,
+        influenceScore: mindshareData.influence_score || 0,
+        smartFollowers: mindshareData.smart_followers || 0
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error calculating brain points:", error.message);
+    // If it's an auth error, provide helpful message
+    if (error.response && error.response.status === 401) {
+      console.log("Moni API authentication failed. Please check your API key.");
+    }
+    return null;
+  }
+}
 
 // Function to get the latest creator
 async function getLatestCreator() {
@@ -590,11 +672,21 @@ async function fetchNewCreators(isInitialFetch) {
                 timeInfo = `\n🕒 Created: ${creationDate.toLocaleString()}`;
               }
 
-              // Get X url if image exists
+              // Get X url if image exists and calculate brain points
               let xUrl = "";
+              let brainInfo = "";
               if (creator.image) {
                 const xUsername = creator.image.split("/").pop().split(".")[0];
                 xUrl = `\n🔗 X: https://x.com/${xUsername}`;
+                
+                // Calculate brain points for this X account
+                const brainData = await calculateBrainPoints(xUsername);
+                if (brainData) {
+                  brainInfo = `\n🧠 Brain Points: ${brainData.brainPoints}`;
+                  if (brainData.mentions > 0) {
+                    brainInfo += `\n📊 Mentions (7d): ${brainData.mentions}`;
+                  }
+                }
               }
 
               // Get contract address
@@ -607,7 +699,7 @@ async function fetchNewCreators(isInitialFetch) {
               // Prepare message with family-friendly tone
               const message = `🌟 New Creator Alert!\n\n👤 ${verifiedBadge}Username: ${
                 creator.username || "N/A"
-              }${priceInfo}${changeInfo}${timeInfo}\n\n🔗 Link: https://time.fun/${
+              }${priceInfo}${changeInfo}${timeInfo}${brainInfo}\n\n🔗 Link: https://time.fun/${
                 creator.username
               }${xUrl}${contractInfo}`;
 
@@ -739,6 +831,66 @@ app.get(["/", "/health"], (req, res) => {
 // Start HTTP server
 app.listen(PORT, () => {
   console.log(`Health check server running on port ${PORT}`);
+});
+
+// Add a brain command to test brain calculation for a specific X account
+bot.command(["brain", "Brain", "BRAIN"], async (ctx) => {
+  console.log("Received /brain command");
+  
+  try {
+    const messageText = ctx.message.text;
+    const parts = messageText.split(" ");
+    
+    if (parts.length < 2) {
+      ctx.reply(
+        "🧠 Brain Calculator\n\n" +
+        "Usage: /brain <x_username>\n" +
+        "Example: /brain elonmusk\n\n" +
+        "This will calculate brain points for the specified X account using Moni API."
+      );
+      return;
+    }
+    
+    const xUsername = parts[1].replace("@", ""); // Remove @ if present
+    
+    ctx.reply(`🔍 Calculating brain points for @${xUsername}...`);
+    
+    const brainData = await calculateBrainPoints(xUsername);
+    
+    if (brainData) {
+      const message = 
+        `🧠 Brain Analysis for @${xUsername}\n\n` +
+        `🎯 Total Brain Points: ${brainData.brainPoints}\n` +
+        `📊 Mentions (7d): ${brainData.mentions}\n` +
+        `💬 Engagement: ${brainData.engagement}\n` +
+        `⭐ Influence Score: ${brainData.influenceScore}\n` +
+        `👥 Smart Followers: ${brainData.smartFollowers}\n\n` +
+        `🔗 X Profile: https://x.com/${xUsername}`;
+      
+      ctx.reply(message);
+    } else {
+      if (!MONI_API_KEY || MONI_API_KEY === "your-moni-api-key-here") {
+        ctx.reply(
+          "❌ Moni API key not configured.\n\n" +
+          "To enable brain calculation, please:\n" +
+          "1. Get your API key from https://moni.ai\n" +
+          "2. Set the MONI_API_KEY environment variable\n" +
+          "3. Restart the bot"
+        );
+      } else {
+        ctx.reply(
+          `❌ Could not calculate brain points for @${xUsername}.\n\n` +
+          "This could be due to:\n" +
+          "• Account not found\n" +
+          "• API rate limits\n" +
+          "• Account has no recent activity"
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error in brain command:", error);
+    ctx.reply("😢 Something went wrong calculating brain points. Please try again.");
+  }
 });
 
 // Add a new copy command to easily copy contract addresses
