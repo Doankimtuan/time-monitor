@@ -1,5 +1,5 @@
-// No need to load dotenv anymore since we're hardcoding the token
-// require("dotenv").config();
+// Load environment variables
+require("dotenv").config();
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
 const http = require("http");
@@ -10,11 +10,12 @@ const MONI_API_BASE_URL = "https://api.moni.ai";
 // Note: You'll need to add your Moni API key to environment variables
 const MONI_API_KEY = process.env.MONI_API_KEY || "your-moni-api-key-here";
 
-// Hardcoded bot token
-const BOT_TOKEN = "7720535612:AAHVCLI1JtlY0bJP_-rvlR-2N9zaJklx1Pg";
+// Bot token - use environment variable or fallback to hardcoded
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "7720535612:AAHVCLI1JtlY0bJP_-rvlR-2N9zaJklx1Pg";
 
 // Initialize Telegram Bot
-console.log("Initializing bot with hardcoded token");
+console.log("Initializing bot...");
+console.log("MONI_API_KEY configured:", MONI_API_KEY !== "your-moni-api-key-here" ? "Yes" : "No");
 const bot = new Telegraf(BOT_TOKEN);
 
 // Add middleware to log all incoming messages
@@ -248,8 +249,13 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
 
 // Function to calculate brain points for an X account
 async function calculateBrainPoints(xUsername) {
+  console.log(`Attempting to calculate brain points for: ${xUsername}`);
+  console.log(`MONI_API_KEY status: ${MONI_API_KEY ? (MONI_API_KEY === "your-moni-api-key-here" ? "default/not-set" : "configured") : "undefined"}`);
+  
   if (!xUsername || !MONI_API_KEY || MONI_API_KEY === "your-moni-api-key-here") {
     console.log("Missing X username or Moni API key for brain calculation");
+    console.log(`- xUsername: ${xUsername}`);
+    console.log(`- MONI_API_KEY: ${MONI_API_KEY ? "exists but may be default" : "not set"}`);
     return null;
   }
 
