@@ -4,6 +4,7 @@ const { Telegraf } = require("telegraf");
 const axios = require("axios");
 const http = require("http");
 const express = require("express");
+const moniDiscoverApi = require("@api/moni-discover-api");
 
 // Moni API configuration
 const MONI_API_BASE_URL = "https://api.moni.ai";
@@ -11,11 +12,16 @@ const MONI_API_BASE_URL = "https://api.moni.ai";
 const MONI_API_KEY = process.env.MONI_API_KEY || "your-moni-api-key-here";
 
 // Bot token - use environment variable or fallback to hardcoded
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "7720535612:AAHVCLI1JtlY0bJP_-rvlR-2N9zaJklx1Pg";
+const BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN ||
+  "7720535612:AAHVCLI1JtlY0bJP_-rvlR-2N9zaJklx1Pg";
 
 // Initialize Telegram Bot
 console.log("Initializing bot...");
-console.log("MONI_API_KEY configured:", MONI_API_KEY !== "your-moni-api-key-here" ? "Yes" : "No");
+console.log(
+  "MONI_API_KEY configured:",
+  MONI_API_KEY !== "your-moni-api-key-here" ? "Yes" : "No"
+);
 const bot = new Telegraf(BOT_TOKEN);
 
 // Add middleware to log all incoming messages
@@ -153,7 +159,7 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
             .pop()
             .split(".")[0];
           xUrl = `\n🔗 X: https://x.com/${xUsername}`;
-          
+
           // Calculate brain points for this X account
           const brainData = await calculateBrainPoints(xUsername);
           if (brainData) {
@@ -250,31 +256,43 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
 // Function to calculate brain points for an X account
 async function calculateBrainPoints(xUsername) {
   console.log(`Attempting to calculate brain points for: ${xUsername}`);
-  console.log(`MONI_API_KEY status: ${MONI_API_KEY ? (MONI_API_KEY === "your-moni-api-key-here" ? "default/not-set" : "configured") : "undefined"}`);
-  
-  if (!xUsername || !MONI_API_KEY || MONI_API_KEY === "your-moni-api-key-here") {
+  console.log(
+    `MONI_API_KEY status: ${
+      MONI_API_KEY
+        ? MONI_API_KEY === "your-moni-api-key-here"
+          ? "default/not-set"
+          : "configured"
+        : "undefined"
+    }`
+  );
+
+  if (
+    !xUsername ||
+    !MONI_API_KEY ||
+    MONI_API_KEY === "your-moni-api-key-here"
+  ) {
     console.log("Missing X username or Moni API key for brain calculation");
     console.log(`- xUsername: ${xUsername}`);
-    console.log(`- MONI_API_KEY: ${MONI_API_KEY ? "exists but may be default" : "not set"}`);
+    console.log(
+      `- MONI_API_KEY: ${
+        MONI_API_KEY ? "exists but may be default" : "not set"
+      }`
+    );
     return null;
   }
 
   try {
-    // Get account info and mindshare data from Moni API
-    const response = await axios.get(
-      `${MONI_API_BASE_URL}/api/v3/analytics/charts/mindshare/projects`,
-      {
-        headers: {
-          'Authorization': `Bearer ${MONI_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        params: {
-          timeframe: 'D7', // Last 7 days
-          forAccounts: xUsername,
-          limit: 1
-        }
-      }
-    );
+    // Use the official Moni Discover API SDK
+    const response = await moniDiscoverApi.getApiV3AnalyticsChartsMindshareProjects({
+      forAccountProjectChains: 'null',
+      forAccountProjectTags: 'null',
+      limit: '1',
+      offset: '0',
+      timeframe: 'D7',
+      fromSmartAccountsTagCategories: 'null',
+      forAccounts: xUsername,
+      'Api-Key': MONI_API_KEY
+    });
 
     if (response.data && response.data.data) {
       // Calculate brain points based on mindshare metrics
@@ -300,7 +318,7 @@ async function calculateBrainPoints(xUsername) {
         mentions: mindshareData.mentions || 0,
         engagement: mindshareData.engagement || 0,
         influenceScore: mindshareData.influence_score || 0,
-        smartFollowers: mindshareData.smart_followers || 0
+        smartFollowers: mindshareData.smart_followers || 0,
       };
     }
 
@@ -684,7 +702,7 @@ async function fetchNewCreators(isInitialFetch) {
               if (creator.image) {
                 const xUsername = creator.image.split("/").pop().split(".")[0];
                 xUrl = `\n🔗 X: https://x.com/${xUsername}`;
-                
+
                 // Calculate brain points for this X account
                 const brainData = await calculateBrainPoints(xUsername);
                 if (brainData) {
@@ -842,29 +860,29 @@ app.listen(PORT, () => {
 // Add a brain command to test brain calculation for a specific X account
 bot.command(["brain", "Brain", "BRAIN"], async (ctx) => {
   console.log("Received /brain command");
-  
+
   try {
     const messageText = ctx.message.text;
     const parts = messageText.split(" ");
-    
+
     if (parts.length < 2) {
       ctx.reply(
         "🧠 Brain Calculator\n\n" +
-        "Usage: /brain <x_username>\n" +
-        "Example: /brain elonmusk\n\n" +
-        "This will calculate brain points for the specified X account using Moni API."
+          "Usage: /brain <x_username>\n" +
+          "Example: /brain elonmusk\n\n" +
+          "This will calculate brain points for the specified X account using Moni API."
       );
       return;
     }
-    
+
     const xUsername = parts[1].replace("@", ""); // Remove @ if present
-    
+
     ctx.reply(`🔍 Calculating brain points for @${xUsername}...`);
-    
+
     const brainData = await calculateBrainPoints(xUsername);
-    
+
     if (brainData) {
-      const message = 
+      const message =
         `🧠 Brain Analysis for @${xUsername}\n\n` +
         `🎯 Total Brain Points: ${brainData.brainPoints}\n` +
         `📊 Mentions (7d): ${brainData.mentions}\n` +
@@ -872,30 +890,32 @@ bot.command(["brain", "Brain", "BRAIN"], async (ctx) => {
         `⭐ Influence Score: ${brainData.influenceScore}\n` +
         `👥 Smart Followers: ${brainData.smartFollowers}\n\n` +
         `🔗 X Profile: https://x.com/${xUsername}`;
-      
+
       ctx.reply(message);
     } else {
       if (!MONI_API_KEY || MONI_API_KEY === "your-moni-api-key-here") {
         ctx.reply(
           "❌ Moni API key not configured.\n\n" +
-          "To enable brain calculation, please:\n" +
-          "1. Get your API key from https://moni.ai\n" +
-          "2. Set the MONI_API_KEY environment variable\n" +
-          "3. Restart the bot"
+            "To enable brain calculation, please:\n" +
+            "1. Get your API key from https://moni.ai\n" +
+            "2. Set the MONI_API_KEY environment variable\n" +
+            "3. Restart the bot"
         );
       } else {
         ctx.reply(
           `❌ Could not calculate brain points for @${xUsername}.\n\n` +
-          "This could be due to:\n" +
-          "• Account not found\n" +
-          "• API rate limits\n" +
-          "• Account has no recent activity"
+            "This could be due to:\n" +
+            "• Account not found\n" +
+            "• API rate limits\n" +
+            "• Account has no recent activity"
         );
       }
     }
   } catch (error) {
     console.error("Error in brain command:", error);
-    ctx.reply("😢 Something went wrong calculating brain points. Please try again.");
+    ctx.reply(
+      "😢 Something went wrong calculating brain points. Please try again."
+    );
   }
 });
 

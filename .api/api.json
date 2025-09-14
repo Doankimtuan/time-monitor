@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "moni-discover-api",
+      "source": "@moni-discover-api/v3#rubpq1xmeil7vwk",
+      "integrity": "sha512-k7QrxvifSScDsACdFOiTPX/mLmS7r5VW5/GU00pLTEr0NsQcnKjuny0JguYzRc0YMuu4fg5HF6/aSFt7B8PDkw==",
+      "installerVersion": "6.1.3"
+    }
+  ]
+}
