@@ -163,16 +163,37 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
           // Calculate brain points for this X account
           const brainData = await calculateBrainPoints(xUsername);
           if (brainData) {
-            brainInfo = `\n🧠 Brain Points: ${brainData.brainPoints}`;
+            brainInfo = `\n\n🧠 ═══ BRAIN ANALYSIS ═══`;
+            brainInfo += `\n🎯 Brain Score: ${brainData.brainPoints.toLocaleString()}`;
+            
             if (brainData.moniScore > 0) {
-              brainInfo += `\n⭐ Moni Score: ${brainData.moniScore}`;
+              brainInfo += `\n⭐ Moni Score: ${brainData.moniScore.toLocaleString()}`;
             }
+            
             if (brainData.smartTier > 0) {
-              brainInfo += `\n🏆 Smart Tier: ${brainData.smartTier}`;
+              const tierEmoji = brainData.smartTier === 1 ? "🥇" : brainData.smartTier === 2 ? "🥈" : brainData.smartTier === 3 ? "🥉" : "🏆";
+              brainInfo += `\n${tierEmoji} Smart Tier: ${brainData.smartTier}`;
             }
+            
             if (brainData.smartMentionsCount > 0) {
-              brainInfo += `\n💬 Smart Mentions: ${brainData.smartMentionsCount}`;
+              brainInfo += `\n💬 Smart Mentions: ${brainData.smartMentionsCount.toLocaleString()}`;
             }
+            
+            if (brainData.mentionsCount > 0) {
+              brainInfo += `\n📊 Total Mentions: ${brainData.mentionsCount.toLocaleString()}`;
+            }
+            
+            // Add engagement ratio if both values exist
+            if (brainData.smartMentionsCount > 0 && brainData.mentionsCount > 0) {
+              const ratio = ((brainData.smartMentionsCount / brainData.mentionsCount) * 100).toFixed(1);
+              brainInfo += `\n📈 Smart Ratio: ${ratio}%`;
+            }
+            
+            if (brainData.smartTagsCount > 0 || brainData.projectTagsCount > 0 || brainData.chainsCount > 0) {
+              brainInfo += `\n🏷️ Tags: ${brainData.smartTagsCount}S | ${brainData.projectTagsCount}P | ${brainData.chainsCount}C`;
+            }
+            
+            brainInfo += `\n═══════════════════`;
           }
         }
 
@@ -713,13 +734,29 @@ async function fetchNewCreators(isInitialFetch) {
                 // Calculate brain points for this X account
                 const brainData = await calculateBrainPoints(xUsername);
                 if (brainData) {
-                  brainInfo = `\n🧠 Brain Points: ${brainData.brainPoints}`;
+                  brainInfo = `\n\n🧠 ═══ BRAIN ANALYSIS ═══`;
+                  brainInfo += `\n🎯 Brain Score: ${brainData.brainPoints.toLocaleString()}`;
+                  
                   if (brainData.moniScore > 0) {
-                    brainInfo += `\n⭐ Moni Score: ${brainData.moniScore}`;
+                    brainInfo += `\n⭐ Moni Score: ${brainData.moniScore.toLocaleString()}`;
                   }
+                  
                   if (brainData.smartTier > 0) {
-                    brainInfo += `\n🏆 Smart Tier: ${brainData.smartTier}`;
+                    const tierEmoji = brainData.smartTier === 1 ? "🥇" : brainData.smartTier === 2 ? "🥈" : brainData.smartTier === 3 ? "🥉" : "🏆";
+                    brainInfo += `\n${tierEmoji} Smart Tier: ${brainData.smartTier}`;
                   }
+                  
+                  if (brainData.smartMentionsCount > 0) {
+                    brainInfo += `\n💬 Smart Mentions: ${brainData.smartMentionsCount.toLocaleString()}`;
+                  }
+                  
+                  // Add engagement ratio if both values exist
+                  if (brainData.smartMentionsCount > 0 && brainData.mentionsCount > 0) {
+                    const ratio = ((brainData.smartMentionsCount / brainData.mentionsCount) * 100).toFixed(1);
+                    brainInfo += `\n📈 Smart Ratio: ${ratio}%`;
+                  }
+                  
+                  brainInfo += `\n═══════════════════`;
                 }
               }
 
@@ -892,18 +929,34 @@ bot.command(["brain", "Brain", "BRAIN"], async (ctx) => {
     const brainData = await calculateBrainPoints(xUsername);
 
     if (brainData) {
-      const message =
-        `🧠 Brain Analysis for @${xUsername}\n\n` +
-        `🎯 Brain Points (Smarts): ${brainData.brainPoints}\n` +
-        `⭐ Moni Score: ${brainData.moniScore}\n` +
-        `🏆 Smart Tier: ${brainData.smartTier}\n` +
-        `💬 Smart Mentions: ${brainData.smartMentionsCount}\n` +
-        `📊 Total Mentions: ${brainData.mentionsCount}\n` +
-        `🏷️ Smart Tags: ${brainData.smartTagsCount}\n` +
-        `📋 Project Tags: ${brainData.projectTagsCount}\n` +
-        `⛓️ Chains: ${brainData.chainsCount}\n` +
-        `🆔 User ID: ${brainData.userId}\n\n` +
-        `🔗 X Profile: https://x.com/${xUsername}`;
+      const tierEmoji = brainData.smartTier === 1 ? "🥇" : brainData.smartTier === 2 ? "🥈" : brainData.smartTier === 3 ? "🥉" : "🏆";
+      
+      let message = `🧠 ═══ BRAIN ANALYSIS ═══\n`;
+      message += `👤 Account: @${xUsername}\n\n`;
+      message += `🎯 Brain Score: ${brainData.brainPoints.toLocaleString()}\n`;
+      message += `⭐ Moni Score: ${brainData.moniScore.toLocaleString()}\n`;
+      
+      if (brainData.smartTier > 0) {
+        message += `${tierEmoji} Smart Tier: ${brainData.smartTier}\n`;
+      }
+      
+      message += `💬 Smart Mentions: ${brainData.smartMentionsCount.toLocaleString()}\n`;
+      message += `📊 Total Mentions: ${brainData.mentionsCount.toLocaleString()}\n`;
+      
+      // Add engagement ratio
+      if (brainData.smartMentionsCount > 0 && brainData.mentionsCount > 0) {
+        const ratio = ((brainData.smartMentionsCount / brainData.mentionsCount) * 100).toFixed(1);
+        message += `📈 Smart Ratio: ${ratio}%\n`;
+      }
+      
+      message += `\n🏷️ Classification:\n`;
+      message += `├ Smart Tags: ${brainData.smartTagsCount}\n`;
+      message += `├ Project Tags: ${brainData.projectTagsCount}\n`;
+      message += `└ Chains: ${brainData.chainsCount}\n\n`;
+      
+      message += `🆔 User ID: ${brainData.userId}\n`;
+      message += `🔗 Profile: https://x.com/${xUsername}\n`;
+      message += `═══════════════════════`;
 
       ctx.reply(message);
     } else {
