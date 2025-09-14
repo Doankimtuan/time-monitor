@@ -7,7 +7,7 @@ const express = require("express");
 const moniDiscoverApi = require("@api/moni-discover-api");
 
 // Moni API configuration
-const MONI_API_BASE_URL = "https://api.moni.ai";
+const MONI_API_BASE_URL = "https://api.discover.getmoni.io";
 // Note: You'll need to add your Moni API key to environment variables
 const MONI_API_KEY = process.env.MONI_API_KEY || "your-moni-api-key-here";
 
@@ -164,11 +164,19 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
           const brainData = await calculateBrainPoints(xUsername);
           if (brainData) {
             brainInfo = `\n🧠 Brain Points: ${brainData.brainPoints}`;
-            if (brainData.mentions > 0) {
-              brainInfo += `\n📊 Mentions (7d): ${brainData.mentions}`;
+            if (brainData.mindshareValue > 0) {
+              brainInfo += `\n📊 Mindshare: ${brainData.mindshareValue.toFixed(
+                2
+              )}%`;
             }
-            if (brainData.smartFollowers > 0) {
-              brainInfo += `\n👥 Smart Followers: ${brainData.smartFollowers}`;
+            if (brainData.mindshareChange !== 0) {
+              const changeIcon = brainData.mindshareChange > 0 ? "📈" : "📉";
+              brainInfo += `\n${changeIcon} Change: ${brainData.mindshareChange.toFixed(
+                1
+              )}%`;
+            }
+            if (brainData.projectTagsCount > 0) {
+              brainInfo += `\n🏷️ Tags: ${brainData.projectTagsCount}`;
             }
           }
         }
@@ -282,43 +290,64 @@ async function calculateBrainPoints(xUsername) {
   }
 
   try {
-    // Use the official Moni Discover API SDK
-    const response = await moniDiscoverApi.getApiV3AnalyticsChartsMindshareProjects({
-      forAccountProjectChains: 'null',
-      forAccountProjectTags: 'null',
-      limit: '1',
-      offset: '0',
-      timeframe: 'D7',
-      fromSmartAccountsTagCategories: 'null',
-      forAccounts: xUsername,
-      'Api-Key': MONI_API_KEY
-    });
+    console.log("Calculating brain points for:", xUsername);
 
-    if (response.data && response.data.data) {
-      // Calculate brain points based on mindshare metrics
-      const mindshareData = response.data.data;
+    // Use direct HTTP API call to Moni Discover API
+    const response = await axios.get(
+      `${MONI_API_BASE_URL}/api/v3/analytics/charts/mindshare/projects/`,
+      {
+        headers: {
+          Accept: "application/json",
+          "Api-Key": MONI_API_KEY,
+        },
+        params: {
+          forAccountProjectChains: "null",
+          forAccountProjectTags: "null",
+          limit: "1",
+          offset: "0",
+          timeframe: "D30",
+          fromSmartAccountsTagCategories: "null",
+          forAccounts: xUsername,
+        },
+      }
+    );
+
+    console.log("Moni API response:", response.data);
+    if (
+      response.data &&
+      response.data.items &&
+      response.data.items.length > 0
+    ) {
+      // Get the first item from the response (highest mindshare)
+      const topAccount = response.data.items[0];
+
+      // Calculate brain points based on mindshare value and change
       let brainPoints = 0;
 
-      // Brain calculation logic based on mindshare metrics
-      if (mindshareData.mentions) {
-        brainPoints += mindshareData.mentions * 0.5;
+      // Base points from mindshare value (percentage of smart mentions)
+      if (topAccount.value) {
+        brainPoints += topAccount.value * 10; // Scale up the percentage
       }
-      if (mindshareData.engagement) {
-        brainPoints += mindshareData.engagement * 0.3;
+
+      // Bonus/penalty based on change (growth/decline)
+      if (topAccount.change) {
+        // Positive change adds bonus, negative change reduces points
+        brainPoints += (topAccount.change / 100) * brainPoints * 0.2;
       }
-      if (mindshareData.influence_score) {
-        brainPoints += mindshareData.influence_score * 2;
-      }
-      if (mindshareData.smart_followers) {
-        brainPoints += mindshareData.smart_followers * 0.1;
+
+      // Additional points for having project tags (indicates categorization)
+      if (topAccount.projectTags && topAccount.projectTags.length > 0) {
+        brainPoints += topAccount.projectTags.length * 5;
       }
 
       return {
-        brainPoints: Math.round(brainPoints),
-        mentions: mindshareData.mentions || 0,
-        engagement: mindshareData.engagement || 0,
-        influenceScore: mindshareData.influence_score || 0,
-        smartFollowers: mindshareData.smart_followers || 0,
+        brainPoints: Math.round(Math.max(brainPoints, 0)), // Ensure non-negative
+        mindshareValue: topAccount.value || 0,
+        mindshareChange: topAccount.change || 0,
+        userId: topAccount.userId || "N/A",
+        projectTagsCount: topAccount.projectTags
+          ? topAccount.projectTags.length
+          : 0,
       };
     }
 
@@ -581,7 +610,7 @@ bot.on("text", (ctx) => {
 function formatContractAddress(address) {
   if (!address) return "";
   // Using backticks for monospace which enables one-click copying in Telegram
-  return `\n📋 Contract (click to copy):\n\`${address}\``;
+  return `\n\n📋 Contract Address:\n\`${address}\`\n💡 *Tap the address above to copy*`;
 }
 
 // Function to send message to all active chats with retries
@@ -707,8 +736,17 @@ async function fetchNewCreators(isInitialFetch) {
                 const brainData = await calculateBrainPoints(xUsername);
                 if (brainData) {
                   brainInfo = `\n🧠 Brain Points: ${brainData.brainPoints}`;
-                  if (brainData.mentions > 0) {
-                    brainInfo += `\n📊 Mentions (7d): ${brainData.mentions}`;
+                  if (brainData.mindshareValue > 0) {
+                    brainInfo += `\n📊 Mindshare: ${brainData.mindshareValue.toFixed(
+                      2
+                    )}%`;
+                  }
+                  if (brainData.mindshareChange !== 0) {
+                    const changeIcon =
+                      brainData.mindshareChange > 0 ? "📈" : "📉";
+                    brainInfo += `\n${changeIcon} Change: ${brainData.mindshareChange.toFixed(
+                      1
+                    )}%`;
                   }
                 }
               }
@@ -882,13 +920,21 @@ bot.command(["brain", "Brain", "BRAIN"], async (ctx) => {
     const brainData = await calculateBrainPoints(xUsername);
 
     if (brainData) {
+      const changeIcon =
+        brainData.mindshareChange > 0
+          ? "📈"
+          : brainData.mindshareChange < 0
+          ? "📉"
+          : "➡️";
       const message =
         `🧠 Brain Analysis for @${xUsername}\n\n` +
         `🎯 Total Brain Points: ${brainData.brainPoints}\n` +
-        `📊 Mentions (7d): ${brainData.mentions}\n` +
-        `💬 Engagement: ${brainData.engagement}\n` +
-        `⭐ Influence Score: ${brainData.influenceScore}\n` +
-        `👥 Smart Followers: ${brainData.smartFollowers}\n\n` +
+        `📊 Mindshare Value: ${brainData.mindshareValue.toFixed(2)}%\n` +
+        `${changeIcon} Mindshare Change: ${brainData.mindshareChange.toFixed(
+          1
+        )}%\n` +
+        `🆔 User ID: ${brainData.userId}\n` +
+        `🏷️ Project Tags: ${brainData.projectTagsCount}\n\n` +
         `🔗 X Profile: https://x.com/${xUsername}`;
 
       ctx.reply(message);
