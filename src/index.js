@@ -165,34 +165,51 @@ bot.command(["latest", "Latest", "LATEST"], async (ctx) => {
           if (brainData) {
             brainInfo = `\n\n🧠 ═══ BRAIN ANALYSIS ═══`;
             brainInfo += `\n🎯 Brain Score: ${brainData.brainPoints.toLocaleString()}`;
-            
+
             if (brainData.moniScore > 0) {
               brainInfo += `\n⭐ Moni Score: ${brainData.moniScore.toLocaleString()}`;
             }
-            
+
             if (brainData.smartTier > 0) {
-              const tierEmoji = brainData.smartTier === 1 ? "🥇" : brainData.smartTier === 2 ? "🥈" : brainData.smartTier === 3 ? "🥉" : "🏆";
+              const tierEmoji =
+                brainData.smartTier === 1
+                  ? "🥇"
+                  : brainData.smartTier === 2
+                  ? "🥈"
+                  : brainData.smartTier === 3
+                  ? "🥉"
+                  : "🏆";
               brainInfo += `\n${tierEmoji} Smart Tier: ${brainData.smartTier}`;
             }
-            
+
             if (brainData.smartMentionsCount > 0) {
               brainInfo += `\n💬 Smart Mentions: ${brainData.smartMentionsCount.toLocaleString()}`;
             }
-            
+
             if (brainData.mentionsCount > 0) {
               brainInfo += `\n📊 Total Mentions: ${brainData.mentionsCount.toLocaleString()}`;
             }
-            
+
             // Add engagement ratio if both values exist
-            if (brainData.smartMentionsCount > 0 && brainData.mentionsCount > 0) {
-              const ratio = ((brainData.smartMentionsCount / brainData.mentionsCount) * 100).toFixed(1);
+            if (
+              brainData.smartMentionsCount > 0 &&
+              brainData.mentionsCount > 0
+            ) {
+              const ratio = (
+                (brainData.smartMentionsCount / brainData.mentionsCount) *
+                100
+              ).toFixed(1);
               brainInfo += `\n📈 Smart Ratio: ${ratio}%`;
             }
-            
-            if (brainData.smartTagsCount > 0 || brainData.projectTagsCount > 0 || brainData.chainsCount > 0) {
+
+            if (
+              brainData.smartTagsCount > 0 ||
+              brainData.projectTagsCount > 0 ||
+              brainData.chainsCount > 0
+            ) {
               brainInfo += `\n🏷️ Tags: ${brainData.smartTagsCount}S | ${brainData.projectTagsCount}P | ${brainData.chainsCount}C`;
             }
-            
+
             brainInfo += `\n═══════════════════`;
           }
         }
@@ -308,9 +325,9 @@ async function calculateBrainPoints(xUsername) {
   try {
     console.log("Calculating brain points for:", xUsername);
 
-    // Use new Moni Discover API endpoint for account smarts
+    // Use Moni Discover API endpoint for full account info
     const response = await axios.get(
-      `${MONI_API_BASE_URL}/api/v3/accounts/${xUsername}/smarts/full/`,
+      `${MONI_API_BASE_URL}/api/v3/accounts/${xUsername}/info/full/`,
       {
         headers: {
           Accept: "application/json",
@@ -320,21 +337,23 @@ async function calculateBrainPoints(xUsername) {
     );
 
     console.log("Moni API response:", response.data);
-    if (response.data && response.data.items && response.data.items.length > 0) {
-      // Get the first item from the response
-      const accountData = response.data.items[0];
+    if (response.data && response.data.smartEngagement) {
+      // Response is a top-level object containing meta, smartEngagement, smartProfile
+      const accountData = response.data;
       
-      // Extract brain points and score from new API structure
+      // Extract brain points and score from API structure
       const brainPoints = accountData.smartEngagement?.smartsCount || 0; // smartsCount is the brain
       const moniScore = accountData.smartEngagement?.moniScore || 0;
       const mentionsCount = accountData.smartEngagement?.mentionsCount || 0;
-      const smartMentionsCount = accountData.smartEngagement?.smartMentionsCount || 0;
+      const smartMentionsCount =
+        accountData.smartEngagement?.smartMentionsCount || 0;
       
       // Extract profile information
       const smartTier = accountData.smartProfile?.smartTier?.tier || 0;
       const smartTags = accountData.smartProfile?.smartTags || [];
       const projectTags = accountData.smartProfile?.projectTags || [];
       const chains = accountData.smartProfile?.chains || [];
+      
 
       return {
         brainPoints: brainPoints, // Direct smartsCount value
@@ -736,26 +755,39 @@ async function fetchNewCreators(isInitialFetch) {
                 if (brainData) {
                   brainInfo = `\n\n🧠 ═══ BRAIN ANALYSIS ═══`;
                   brainInfo += `\n🎯 Brain Score: ${brainData.brainPoints.toLocaleString()}`;
-                  
+
                   if (brainData.moniScore > 0) {
                     brainInfo += `\n⭐ Moni Score: ${brainData.moniScore.toLocaleString()}`;
                   }
-                  
+
                   if (brainData.smartTier > 0) {
-                    const tierEmoji = brainData.smartTier === 1 ? "🥇" : brainData.smartTier === 2 ? "🥈" : brainData.smartTier === 3 ? "🥉" : "🏆";
+                    const tierEmoji =
+                      brainData.smartTier === 1
+                        ? "🥇"
+                        : brainData.smartTier === 2
+                        ? "🥈"
+                        : brainData.smartTier === 3
+                        ? "🥉"
+                        : "🏆";
                     brainInfo += `\n${tierEmoji} Smart Tier: ${brainData.smartTier}`;
                   }
-                  
+
                   if (brainData.smartMentionsCount > 0) {
                     brainInfo += `\n💬 Smart Mentions: ${brainData.smartMentionsCount.toLocaleString()}`;
                   }
-                  
+
                   // Add engagement ratio if both values exist
-                  if (brainData.smartMentionsCount > 0 && brainData.mentionsCount > 0) {
-                    const ratio = ((brainData.smartMentionsCount / brainData.mentionsCount) * 100).toFixed(1);
+                  if (
+                    brainData.smartMentionsCount > 0 &&
+                    brainData.mentionsCount > 0
+                  ) {
+                    const ratio = (
+                      (brainData.smartMentionsCount / brainData.mentionsCount) *
+                      100
+                    ).toFixed(1);
                     brainInfo += `\n📈 Smart Ratio: ${ratio}%`;
                   }
-                  
+
                   brainInfo += `\n═══════════════════`;
                 }
               }
@@ -929,31 +961,41 @@ bot.command(["brain", "Brain", "BRAIN"], async (ctx) => {
     const brainData = await calculateBrainPoints(xUsername);
 
     if (brainData) {
-      const tierEmoji = brainData.smartTier === 1 ? "🥇" : brainData.smartTier === 2 ? "🥈" : brainData.smartTier === 3 ? "🥉" : "🏆";
-      
+      const tierEmoji =
+        brainData.smartTier === 1
+          ? "🥇"
+          : brainData.smartTier === 2
+          ? "🥈"
+          : brainData.smartTier === 3
+          ? "🥉"
+          : "🏆";
+
       let message = `🧠 ═══ BRAIN ANALYSIS ═══\n`;
       message += `👤 Account: @${xUsername}\n\n`;
       message += `🎯 Brain Score: ${brainData.brainPoints.toLocaleString()}\n`;
       message += `⭐ Moni Score: ${brainData.moniScore.toLocaleString()}\n`;
-      
+
       if (brainData.smartTier > 0) {
         message += `${tierEmoji} Smart Tier: ${brainData.smartTier}\n`;
       }
-      
+
       message += `💬 Smart Mentions: ${brainData.smartMentionsCount.toLocaleString()}\n`;
       message += `📊 Total Mentions: ${brainData.mentionsCount.toLocaleString()}\n`;
-      
+
       // Add engagement ratio
       if (brainData.smartMentionsCount > 0 && brainData.mentionsCount > 0) {
-        const ratio = ((brainData.smartMentionsCount / brainData.mentionsCount) * 100).toFixed(1);
+        const ratio = (
+          (brainData.smartMentionsCount / brainData.mentionsCount) *
+          100
+        ).toFixed(1);
         message += `📈 Smart Ratio: ${ratio}%\n`;
       }
-      
+
       message += `\n🏷️ Classification:\n`;
       message += `├ Smart Tags: ${brainData.smartTagsCount}\n`;
       message += `├ Project Tags: ${brainData.projectTagsCount}\n`;
       message += `└ Chains: ${brainData.chainsCount}\n\n`;
-      
+
       message += `🆔 User ID: ${brainData.userId}\n`;
       message += `🔗 Profile: https://x.com/${xUsername}\n`;
       message += `═══════════════════════`;
